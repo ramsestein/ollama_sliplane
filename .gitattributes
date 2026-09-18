@@ -1,0 +1,4 @@
+# Forzar saltos de línea LF para scripts y Dockerfile (evita CRLF en Windows)
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
