@@ -242,8 +242,21 @@ class Anonymizer:
     BATCH_SIZE = 32
 
     def __init__(self, model_dir=None, device=None, threshold=0.1):
-        import torch
-        from transformers import AutoModelForTokenClassification, AutoTokenizer
+        try:
+            import torch
+        except ImportError as exc:
+            raise ImportError("Falta PyTorch. Instala: pip install torch") from exc
+        try:
+            from transformers import AutoModelForTokenClassification, AutoTokenizer
+        except ImportError:
+            try:
+                from transformers.models.auto import AutoModelForTokenClassification
+                from transformers import AutoTokenizer
+            except ImportError as exc:
+                raise ImportError(
+                    "No se pudo importar AutoModelForTokenClassification. "
+                    "Reinstala transformers: pip install -U transformers"
+                ) from exc
 
         self.model_dir = Path(model_dir) if model_dir else DEFAULT_MODEL_DIR
         self.device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")

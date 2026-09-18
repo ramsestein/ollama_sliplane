@@ -184,6 +184,7 @@ class ClientApp:
         self.log_file = None
         self.anon = None
         self.history = []
+        self.started = False
         self.vars = {}
         self.build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -266,7 +267,7 @@ class ClientApp:
         inrow = ttk.Frame(chat_frame, style="TFrame")
         inrow.pack(fill="x", pady=(8, 0))
         ttk.Label(inrow, text="Mensaje:", style="TLabel").pack(side="left")
-        self.input = ttk.Entry(inrow, state="disabled")
+        self.input = ttk.Entry(inrow)
         self.input.pack(side="left", fill="x", expand=True, padx=(8, 0))
         self.input.bind("<Return>", self.on_send)
         self.send_btn = ttk.Button(inrow, text="Enviar", style="Accent.TButton",
@@ -352,7 +353,7 @@ class ClientApp:
         self.run_bg(
             lambda: _load_anonymizer(),
             done=self._on_anon_loaded,
-            error=lambda e: self._on_anon_loaded(None),
+            error=lambda e: self._on_anon_loaded((None, str(e))),
         )
 
     def _on_ping_error(self, exc):
@@ -373,16 +374,17 @@ class ClientApp:
         except Exception as exc:
             self.status(f"✗ No se pudo levantar Ollama local: {exc}")
 
-    def _on_anon_loaded(self, anon):
+    def _on_anon_loaded(self, result):
+        anon, error = result
         self.anon = anon
         if anon is None:
-            self.status("⚠ Anonimizador no disponible; se enviará texto sin anonimizar")
+            self.status(f"⚠ Anonimizador no disponible: {error}")
         else:
             self.status("✓ Anonimizador listo")
         self.status("✓ Cliente listo. Escribe tu mensaje.")
         # Arrancar queda deshabilitado: ya estamos en marcha.
+        self.started = True
         self.stop_btn.config(state="normal")
-        self.input.config(state="normal")
         self.send_btn.config(state="normal")
         self.input.focus_set()
 
@@ -391,12 +393,12 @@ class ClientApp:
         if self.anon is not None:
             self.anon.reset()
         self.history.clear()
+        self.started = False
         self.chat_text.config(state="normal")
         self.chat_text.delete("1.0", tk.END)
         self.chat_text.config(state="disabled")
         self.start_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
-        self.input.config(state="disabled")
         self.send_btn.config(state="disabled")
         self.status("Detenido. Puedes volver a Arrancar.")
 
@@ -420,6 +422,8 @@ class ClientApp:
 
     # ── Chat ──────────────────────────────────────────────────────────────
     def on_send(self, event=None):
+        if not self.started:
+            return
         text = self.input.get().strip()
         if not text:
             return
@@ -477,9 +481,9 @@ class ClientApp:
 def _load_anonymizer():
     try:
         from anonymizer import get_anonymizer
-        return get_anonymizer()
-    except Exception:
-        return None
+        return get_anonymizer(), None
+    except Exception as exc:
+        return None, str(exc)
 
 
 def main():
