@@ -13,6 +13,7 @@ import base64
 import json
 import os
 import sys
+import threading
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -97,6 +98,47 @@ def _ensure_chat_capability(obj):
                 if cap not in caps:
                     caps.append(cap)
     return obj
+
+
+# ── Capa de anonimización (opcional: BERT + regex en local) ────────────────
+try:
+    from anonymizer import get_anonymizer
+except Exception:  # noqa: BLE001
+    get_anonymizer = None
+
+_ANON_LOCK = threading.Lock()
+
+
+def _anonymize_body(anon, body):
+    """Anonimiza los campos de texto de una petición (in-place)."""
+    if not isinstance(body, dict):
+        return body
+    messages = body.get("messages")
+    if isinstance(messages, list):
+        for m in messages:
+            if isinstance(m, dict) and isinstance(m.get("content"), str):
+                m["content"] = anon.anonymize(m["content"])
+    if isinstance(body.get("prompt"), str):
+        body["prompt"] = anon.anonymize(body["prompt"])
+    return body
+
+
+def _deanonymize_body(anon, body):
+    """Restaura los placeholders de una respuesta."""
+    if not isinstance(body, dict):
+        return body
+    message = body.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), str):
+        message["content"] = anon.deanonymize(message["content"])
+    choices = body.get("choices")
+    if isinstance(choices, list):
+        for c in choices:
+            if isinstance(c, dict) and isinstance(c.get("message"), dict) \
+                    and isinstance(c["message"].get("content"), str):
+                c["message"]["content"] = anon.deanonymize(c["message"]["content"])
+    if isinstance(body.get("response"), str):
+        body["response"] = anon.deanonymize(body["response"])
+    return body
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -186,7 +228,22 @@ class Handler(BaseHTTPRequestHandler):
             req_body = dict(req_body)
             req_body["stream"] = False
 
-        status, body = forward("POST", self.path, req_body)
+        use_anon = self.path in STREAMING_PATHS and get_anonymizer is not None
+        anon = None
+        if use_anon:
+            _ANON_LOCK.acquire()
+            try:
+                anon = get_anonymizer()
+                if anon is not None:
+                    anon.reset()
+                    _anonymize_body(anon, req_body)
+                status, body = forward("POST", self.path, req_body)
+                if anon is not None:
+                    body = _deanonymize_body(anon, body)
+            finally:
+                _ANON_LOCK.release()
+        else:
+            status, body = forward("POST", self.path, req_body)
 
         if want_stream and self.path.startswith("/v1/"):
             # SSE para el endpoint compatible con OpenAI

@@ -9,6 +9,9 @@ __pycache__/
 .venv/
 carmina_3_suite/
 
+# Modelo BERT de anonimización (pesado, se descarga/copia aparte)
+models/
+
 # Sistema
 .DS_Store
 Thumbs.db
