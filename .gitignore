@@ -7,6 +7,7 @@
 __pycache__/
 *.pyc
 .venv/
+carmina_3_suite/
 
 # Sistema
 .DS_Store

@@ -80,6 +80,25 @@ def forward(method, path, body=None):
     return result.get("status", 500), result.get("body")
 
 
+def _ensure_chat_capability(obj):
+    """Algunos modelos base (p. ej. gemma3:270m) se reportan solo como
+    'completion'. Añadimos 'chat' para que la extensión de Ollama para VS Code
+    permita seleccionarlo como modelo de chat.
+
+    No inyectamos 'tools': si el modelo no las soporta (p. ej. toda la familia
+    gemma3), la extensión las enviaría igualmente y Ollama respondería
+    HTTP 400 'does not support tools'."""
+    if isinstance(obj, dict):
+        caps = obj.get("capabilities")
+        if caps is None:
+            obj["capabilities"] = ["chat", "completion"]
+        elif isinstance(caps, list):
+            for cap in ("chat", "completion"):
+                if cap not in caps:
+                    caps.append(cap)
+    return obj
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[local] %s\n" % (fmt % args))
@@ -91,14 +110,19 @@ class Handler(BaseHTTPRequestHandler):
             data = data.encode("utf-8")
         elif data is None:
             data = b""
-        self.send_response(code)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            # El cliente (p. ej. VS Code) cerró la conexión antes de terminar.
+            # Es inofensivo y no debe imprimir un traceback.
+            pass
 
     def _read_body(self):
         length = int(self.headers.get("Content-Length", "0") or 0)
@@ -120,6 +144,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/tags":
             status, body = forward("GET", "/api/tags")
+            if isinstance(body, dict) and isinstance(body.get("models"), list):
+                for m in body["models"]:
+                    _ensure_chat_capability(m)
             self._send(status, body)
             return
         if self.path == "/v1/models":
@@ -146,6 +173,12 @@ class Handler(BaseHTTPRequestHandler):
             req_body = json.loads(raw) if raw else {}
         except ValueError:
             req_body = raw.decode("utf-8", "replace")
+
+        if self.path == "/api/show":
+            status, body = forward("POST", "/api/show", req_body)
+            _ensure_chat_capability(body)
+            self._send(status, body)
+            return
 
         want_stream = False
         if isinstance(req_body, dict) and self.path in STREAMING_PATHS:
