@@ -265,8 +265,9 @@ class ClientApp:
         self.chat_text.pack(fill="both", expand=True)
         inrow = ttk.Frame(chat_frame, style="TFrame")
         inrow.pack(fill="x", pady=(8, 0))
+        ttk.Label(inrow, text="Mensaje:", style="TLabel").pack(side="left")
         self.input = ttk.Entry(inrow, state="disabled")
-        self.input.pack(side="left", fill="x", expand=True)
+        self.input.pack(side="left", fill="x", expand=True, padx=(8, 0))
         self.input.bind("<Return>", self.on_send)
         self.send_btn = ttk.Button(inrow, text="Enviar", style="Accent.TButton",
                                    command=self.on_send, state="disabled")
@@ -379,14 +380,25 @@ class ClientApp:
         else:
             self.status("✓ Anonimizador listo")
         self.status("✓ Cliente listo. Escribe tu mensaje.")
-        self.start_btn.config(state="normal")
+        # Arrancar queda deshabilitado: ya estamos en marcha.
         self.stop_btn.config(state="normal")
         self.input.config(state="normal")
         self.send_btn.config(state="normal")
+        self.input.focus_set()
 
     def on_stop(self):
         self._stop_ollama()
-        self.status("Detenido.")
+        if self.anon is not None:
+            self.anon.reset()
+        self.history.clear()
+        self.chat_text.config(state="normal")
+        self.chat_text.delete("1.0", tk.END)
+        self.chat_text.config(state="disabled")
+        self.start_btn.config(state="normal")
+        self.stop_btn.config(state="disabled")
+        self.input.config(state="disabled")
+        self.send_btn.config(state="disabled")
+        self.status("Detenido. Puedes volver a Arrancar.")
 
     def _stop_ollama(self):
         if self.ollama_proc is not None:
