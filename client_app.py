@@ -191,12 +191,13 @@ class CollapsibleSection(ttk.Frame):
     """Sección con cabecera clicable que muestra/oculta su contenido."""
 
     def __init__(self, parent, title, body_fill="x", body_expand=False,
-                 collapsed=False, **kwargs):
+                 collapsed=False, on_toggle=None, **kwargs):
         super().__init__(parent, style="TFrame", **kwargs)
         self._title = title
         self._body_fill = body_fill
         self._body_expand = body_expand
         self._collapsed = collapsed
+        self._on_toggle = on_toggle
         self._arrow = "▸" if collapsed else "▾"
         self.header = ttk.Button(self, text=f"{self._arrow} {title}",
                                  style="Section.TButton", command=self.toggle)
@@ -214,12 +215,15 @@ class CollapsibleSection(ttk.Frame):
             self.body.pack(fill=self._body_fill, expand=self._body_expand, pady=(6, 0))
             self._arrow = "▾"
         self.header.config(text=f"{self._arrow} {self._title}")
+        if self._on_toggle:
+            self._on_toggle()
 
 
 class ClientApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Cliente Ollama Privado")
+        self.root.title("Pukara v1.0 - Secure Ollama")
+        self._set_icon()
         self.env = load_env()
         self.ollama_proc = None
         self.log_file = None
@@ -229,6 +233,7 @@ class ClientApp:
         self.vars = {}
         self.build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self._fit_window()
 
         self.status("Ejecutando comprobaciones del sistema...")
         self.run_bg(run_checks, done=self._on_checks,
@@ -284,7 +289,8 @@ class ClientApp:
         self.status_text.pack(fill="x")
 
         # Configuración: colapsable, abierta por defecto.
-        self.config_section = CollapsibleSection(self.root, "Configuración (se guarda en .env)")
+        self.config_section = CollapsibleSection(
+            self.root, "Configuración (se guarda en .env)", on_toggle=self._fit_window)
         self.config_section.pack(fill="x", padx=18, pady=(10, 0))
         for i, key in enumerate(CONFIG_KEYS):
             ttk.Label(self.config_section.body, text=CONFIG_LABELS[key]).grid(
@@ -305,7 +311,7 @@ class ClientApp:
 
         # Chat: colapsable, abierto por defecto.
         self.chat_section = CollapsibleSection(
-            self.root, "Chat", body_fill="both", body_expand=True)
+            self.root, "Chat", body_fill="both", body_expand=True, on_toggle=self._fit_window)
         self.chat_section.pack(fill="both", expand=True, padx=18, pady=(10, 18))
         # La fila de entrada va anclada abajo para que siempre sea visible.
         inrow = ttk.Frame(self.chat_section.body, style="TFrame")
@@ -323,6 +329,22 @@ class ClientApp:
         self.chat_text.pack(side="top", fill="both", expand=True)
 
     # ── Helpers UI ────────────────────────────────────────────────────────
+    def _set_icon(self):
+        icon_path = ROOT / "image.png"
+        if icon_path.exists():
+            try:
+                self._icon = tk.PhotoImage(file=str(icon_path))
+                self.root.iconphoto(True, self._icon)
+            except Exception as exc:
+                print(f"[icon] no se pudo cargar {icon_path}: {exc}")
+
+    def _fit_window(self):
+        """Ajusta el tamaño de la ventana al contenido (responsive)."""
+        self.root.update_idletasks()
+        w = max(self.root.winfo_reqwidth(), 640)
+        h = max(self.root.winfo_reqheight(), 480)
+        self.root.geometry(f"{w}x{h}")
+
     def status(self, msg):
         self._append(self.status_text, msg + "\n")
 
@@ -536,8 +558,7 @@ def _load_anonymizer():
 
 def main():
     root = tk.Tk()
-    root.geometry("760x840")
-    root.minsize(700, 700)
+    root.minsize(640, 480)
     ClientApp(root)
     root.mainloop()
 
