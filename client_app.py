@@ -260,12 +260,9 @@ class ClientApp:
 
         chat_frame = ttk.LabelFrame(self.root, text="Chat", padding=10)
         chat_frame.pack(fill="both", expand=True, padx=18, pady=(10, 18))
-        self.chat_text = scrolledtext.ScrolledText(
-            chat_frame, height=14, state="disabled", font=("Segoe UI", 10),
-            bg="#ffffff", fg="#1f2430", relief="flat", borderwidth=0)
-        self.chat_text.pack(fill="both", expand=True)
+        # La fila de entrada va anclada abajo para que siempre sea visible.
         inrow = ttk.Frame(chat_frame, style="TFrame")
-        inrow.pack(fill="x", pady=(8, 0))
+        inrow.pack(side="bottom", fill="x", pady=(8, 0))
         ttk.Label(inrow, text="Mensaje:", style="TLabel").pack(side="left")
         self.input = ttk.Entry(inrow)
         self.input.pack(side="left", fill="x", expand=True, padx=(8, 0))
@@ -273,6 +270,10 @@ class ClientApp:
         self.send_btn = ttk.Button(inrow, text="Enviar", style="Accent.TButton",
                                    command=self.on_send, state="disabled")
         self.send_btn.pack(side="left", padx=(8, 0))
+        self.chat_text = scrolledtext.ScrolledText(
+            chat_frame, height=8, state="disabled", font=("Segoe UI", 10),
+            bg="#ffffff", fg="#1f2430", relief="flat", borderwidth=0)
+        self.chat_text.pack(side="top", fill="both", expand=True)
 
     # ── Helpers UI ────────────────────────────────────────────────────────
     def status(self, msg):
@@ -488,7 +489,8 @@ def _load_anonymizer():
 
 def main():
     root = tk.Tk()
-    root.geometry("740x760")
+    root.geometry("760x840")
+    root.minsize(700, 700)
     ClientApp(root)
     root.mainloop()
 
