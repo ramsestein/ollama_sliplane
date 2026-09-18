@@ -3,5 +3,5 @@
 cryptography>=42.0
 numpy>=1.26
 torch>=2.1
-transformers>=4.40
+transformers>=5.17.0
 huggingface_hub>=0.23
