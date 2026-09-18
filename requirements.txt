@@ -2,6 +2,6 @@
 # El servidor (Docker) instala cryptography vía apt (ver Dockerfile).
 cryptography>=42.0
 numpy>=1.26
-torch>=2.1
+torch>=2.14.0
 transformers>=4.40
 huggingface_hub>=0.23
