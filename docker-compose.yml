@@ -7,6 +7,7 @@ services:
       - "127.0.0.1:11434:11434"         # Ollama directo, solo accesible en local
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b}
+      OLLAMA_KEEP_ALIVE: "-1"
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?Define ENCRYPTION_SECRET en .env}
       AUTH_USER: ${AUTH_USER:-}
       AUTH_PASSWORD: ${AUTH_PASSWORD:-}

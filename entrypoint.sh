@@ -4,6 +4,9 @@ set -e
 MODEL="${OLLAMA_MODEL:-gemma2:2b}"
 PROXY_PORT="${PROXY_PORT:-8000}"
 
+# Mantener el modelo cargado en memoria para evitar arranques en frío.
+export OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:--1}"
+
 echo ">> Iniciando servidor Ollama..."
 ollama serve &
 SERVER_PID=$!
@@ -39,6 +42,16 @@ until ollama pull "$MODEL"; do
   ATTEMPT=$((ATTEMPT + 1))
   sleep 5
 done
+
+echo ">> Calentando el modelo '$MODEL' (carga en memoria)..."
+if curl -fsS http://localhost:11434/api/chat \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"stream\":false}" \
+    >/dev/null; then
+  echo ">> Modelo cargado y residente en memoria."
+else
+  echo ">> Aviso: el calentamiento falló; se cargará en la primera petición." >&2
+fi
 
 echo ">> Modelo listo. Arrancando proxy cifrado en el puerto $PROXY_PORT..."
 python3 /app/proxy.py &
