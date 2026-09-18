@@ -8,6 +8,9 @@ Expone:
 
 Ollama queda escuchando solo en 127.0.0.1:11434 (no accesible desde fuera).
 """
+import base64
+import hmac
+import ipaddress
 import json
 import os
 import sys
@@ -20,6 +23,55 @@ import secure
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 PORT = int(os.environ.get("PROXY_PORT", "8000"))
 SECRET = os.environ.get("ENCRYPTION_SECRET", "")
+AUTH_USER = os.environ.get("AUTH_USER", "")
+AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
+ALLOWED_IPS = os.environ.get("ALLOWED_IPS", "")
+
+
+def _parse_allowed_ips(raw):
+    nets = []
+    for item in raw.split(","):
+        item = item.strip()
+        if item:
+            try:
+                nets.append(ipaddress.ip_network(item, strict=False))
+            except ValueError:
+                sys.stderr.write("[proxy] IP inválida en ALLOWED_IPS: %s\n" % item)
+    return nets
+
+
+_ALLOWED_NETS = _parse_allowed_ips(ALLOWED_IPS)
+
+
+def _client_ip(handler):
+    xff = handler.headers.get("X-Forwarded-For")
+    if xff:
+        return xff.split(",")[0].strip()
+    real = handler.headers.get("X-Real-IP")
+    if real:
+        return real.strip()
+    return handler.client_address[0]
+
+
+def _ip_allowed(ip):
+    if not _ALLOWED_NETS:
+        return True  # sin lista configurada => sin restricción
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(addr in net for net in _ALLOWED_NETS)
+
+
+def _auth_ok(headers):
+    if not AUTH_USER and not AUTH_PASSWORD:
+        return True  # sin credenciales configuradas => sin restricción
+    auth = headers.get("Authorization", "")
+    expected = base64.b64encode(
+        ("%s:%s" % (AUTH_USER, AUTH_PASSWORD)).encode("utf-8")
+    ).decode("ascii")
+    provided = auth[6:] if auth.startswith("Basic ") else ""
+    return hmac.compare_digest(provided, expected)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -43,6 +95,16 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.rstrip("/") != "/secure/request":
             self._json(404, {"error": "not found"})
+            return
+
+        client_ip = _client_ip(self)
+        if not _ip_allowed(client_ip):
+            self._json(403, {"error": "ip not allowed"})
+            return
+        if not _auth_ok(self.headers):
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="ollama"')
+            self.end_headers()
             return
 
         try:

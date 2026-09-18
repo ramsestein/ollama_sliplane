@@ -43,6 +43,9 @@ Variables de entorno (en `.env` para local, en el panel de Sliplane para prod):
 |---------------------|----------------------------------------------------|
 | `OLLAMA_MODEL`      | Modelo a descargar (defecto `gemma2:2b`)           |
 | `ENCRYPTION_SECRET` | Secreto compartido para el cifrado (obligatorio)   |
+| `AUTH_USER`         | Usuario de acceso al proxy (Basic Auth)            |
+| `AUTH_PASSWORD`     | Contraseña del proxy (Basic Auth)                  |
+| `ALLOWED_IPS`       | IPs permitidas, separadas por comas (admite CIDR)  |
 | `PROXY_PORT`        | Puerto del proxy (defecto `8000`)                  |
 
 Copia la plantilla y edítala (el `.env` no se sube a git):
@@ -92,6 +95,9 @@ Por defecto se descarga `gemma2:2b` (~1.6 GB). Nota: ni `gemma4:2b` ni
    - **Variables de entorno**:
      - `OLLAMA_MODEL=gemma3:270m` (o el que quieras)
      - `ENCRYPTION_SECRET=<tu secreto>`
+     - `AUTH_USER=admin`
+     - `AUTH_PASSWORD=<tu contraseña>`
+     - `ALLOWED_IPS=203.229.141.235` (tu IP pública)
 4. Despliega. Obtendrás una URL pública HTTPS, p. ej.
    `https://tu-app.sliplane.app`.
 
@@ -109,8 +115,11 @@ python client.py --url https://tu-app.sliplane.app --model gemma3:270m
 - Ollama queda **sin exponer** (solo `127.0.0.1:11434`).
 - El secreto vive en `.env` (local, no versionado) y en las variables de
   entorno/secretos de Sliplane. No lo subas nunca al repositorio.
-- Para producción, considera además: restricción por IP o un secreto largo y
-  aleatorio rotado con frecuencia.
+- El proxy exige **usuario/contraseña** (Basic Auth) y **lista blanca de IPs**
+  (`ALLOWED_IPS`). Configúralos en Sliplane igual que en tu `.env`.
+- La IP del cliente se lee de `X-Forwarded-For` (lo reenvía el router de
+  Sliplane). Si tu IP pública es dinámica, tendrás que actualizar `ALLOWED_IPS`
+  cuando cambie.
 
 ## Notas de rendimiento
 
