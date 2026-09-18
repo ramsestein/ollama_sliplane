@@ -28,17 +28,26 @@ Probar una inferencia (endpoint compatible con OpenAI):
 curl http://localhost:11434/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemma3:2b",
+    "model": "gemma2:2b",
     "messages": [{"role": "user", "content": "Hola, ¿quién eres?"}]
   }'
 ```
 
 ## Modelo
 
-Por defecto se descarga `gemma3:2b` (~2.6 GB). Nota: `gemma4:2b` no existe en el
-catálogo actual de Ollama; el equivalente más cercano es `gemma3:2b`.
+Por defecto se descarga `gemma2:2b` (~1.6 GB). Nota: ni `gemma4:2b` ni
+`gemma3:2b` existen en el catálogo de Ollama (Gemma 3 solo está en 1B, 4B, 12B y
+27B). Alternativas: `gemma3:1b`, `gemma3:4b`, `llama3.2:3b`, etc.
 
-Puedes cambiar el modelo con la variable de entorno `OLLAMA_MODEL`:
+Puedes cambiar el modelo con la variable de entorno `OLLAMA_MODEL`.
+
+Para uso local, copia la plantilla y edítala (el `.env` no se sube a git):
+
+```bash
+cp .env.example .env   # y edita el modelo que quieras
+```
+
+También puedes sobrescribirlo directamente:
 
 ```bash
 OLLAMA_MODEL=llama3.2:3b docker compose up
@@ -53,8 +62,8 @@ OLLAMA_MODEL=llama3.2:3b docker compose up
    - **Build**: detecta automáticamente el `Dockerfile` en la raíz.
    - **Puerto**: `11434`.
    - **Volumen persistente**: monta uno en la ruta `/root/.ollama` para no
-     volver a descargar el modelo en cada reinicio (2.6 GB).
-   - **Variables de entorno** (opcional): `OLLAMA_MODEL=gemma3:2b`.
+     volver a descargar el modelo en cada reinicio (1.6 GB).
+   - **Variables de entorno** (opcional): `OLLAMA_MODEL=gemma2:2b`.
 4. Despliega. Sliplane te dará una URL pública HTTPS, por ejemplo
    `https://tu-app.sliplane.app`.
 
@@ -77,6 +86,6 @@ curl https://TU-URL.sliplane.app/api/tags
 
 ## Notas de rendimiento
 
-Sliplane suele ofrecer solo CPU. `gemma3:2b` funciona en CPU, pero la latencia
+Sliplane suele ofrecer solo CPU. `gemma2:2b` funciona en CPU, pero la latencia
 será mayor que con GPU. Para modelos más grandes, revisa si tu plan incluye
 instancias con GPU.

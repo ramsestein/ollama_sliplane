@@ -5,7 +5,7 @@ services:
     ports:
       - "11434:11434"
     environment:
-      OLLAMA_MODEL: gemma3:2b
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b}
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-MODEL="${OLLAMA_MODEL:-gemma3:2b}"
+MODEL="${OLLAMA_MODEL:-gemma2:2b}"
 
 echo ">> Iniciando servidor Ollama..."
 ollama serve &
@@ -26,7 +26,18 @@ if [ "$READY" -ne 1 ]; then
 fi
 
 echo ">> Descargando el modelo '$MODEL' (si ya está en el volumen, lo usa directamente)..."
-ollama pull "$MODEL"
+ATTEMPT=1
+MAX_ATTEMPTS=3
+until ollama pull "$MODEL"; do
+  if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+    echo ">> No se pudo descargar el modelo '$MODEL' tras $MAX_ATTEMPTS intentos." >&2
+    echo ">> Verifica que el nombre existe en https://ollama.com/library" >&2
+    exit 1
+  fi
+  echo ">> Reintentando descarga ($ATTEMPT/$MAX_ATTEMPTS)..."
+  ATTEMPT=$((ATTEMPT + 1))
+  sleep 5
+done
 
 echo ">> Modelo listo. Ollama escuchando en el puerto 11434."
 wait "$SERVER_PID"

@@ -14,7 +14,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 ENV OLLAMA_HOST=0.0.0.0:11434
 
 # Modelo que se descarga al arrancar (cambiable vía variable de entorno)
-ENV OLLAMA_MODEL=gemma3:2b
+ENV OLLAMA_MODEL=gemma2:2b
 
 EXPOSE 11434
 

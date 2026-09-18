@@ -1,6 +1,7 @@
 # Entornos y secretos
 .env
 .env.*
+!.env.example
 
 # Python (por si añades scripts luego)
 __pycache__/
