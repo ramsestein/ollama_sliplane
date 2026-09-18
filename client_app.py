@@ -22,13 +22,12 @@ import urllib.request
 from pathlib import Path
 
 import tkinter as tk
-from tkinter import messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext, ttk
 
 import secure
 
 ROOT = Path(__file__).resolve().parent
-MODEL_DIRNAME = "bsc-bio-ehr-es-carmen-anon"
-MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
+DEFAULT_MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
 
 CONFIG_KEYS = [
     "REMOTE_URL", "ENCRYPTION_SECRET", "AUTH_USER", "AUTH_PASSWORD",
@@ -46,12 +45,12 @@ CONFIG_LABELS = {
 }
 
 DEFAULTS = {
-    "REMOTE_URL": "https://ollama-sliplane.sliplane.app",
+    "REMOTE_URL": "",
     "ENCRYPTION_SECRET": "",
     "AUTH_USER": "",
     "AUTH_PASSWORD": "",
     "ALLOWED_IPS": "",
-    "OLLAMA_MODEL": "llama3.2:1b",
+    "OLLAMA_MODEL": "",
     "LOCAL_PORT": "11434",
 }
 
@@ -67,6 +66,16 @@ def load_env(path=".env"):
                 key, val = line.split("=", 1)
                 env[key.strip()] = val.strip()
     return env
+
+
+def model_repo(env=None):
+    env = env if env is not None else load_env()
+    return (env.get("BERT_MODEL") or DEFAULT_MODEL_REPO).strip()
+
+
+def model_dirname(repo=None):
+    repo = repo if repo is not None else model_repo()
+    return repo.split("/")[-1]
 
 
 def save_env(updates: dict, path=".env"):
@@ -112,13 +121,14 @@ def detect_ip():
 
 def ensure_model(models_dir=None):
     """Comprueba el modelo BERT; si no está, intenta descargarlo (gated)."""
+    repo = model_repo()
     d = Path(models_dir) if models_dir else ROOT / "models"
-    model_dir = d / MODEL_DIRNAME
+    model_dir = d / model_dirname(repo)
     if (model_dir / "pytorch_model.bin").exists() or (model_dir / "model.safetensors").exists():
         return True, "presente"
     try:
         from huggingface_hub import snapshot_download  # noqa: E402
-        snapshot_download(repo_id=MODEL_REPO, local_dir=str(model_dir))
+        snapshot_download(repo_id=repo, local_dir=str(model_dir))
     except Exception as exc:
         return False, f"no descargable ({exc.__class__.__name__})"
     ok = (model_dir / "pytorch_model.bin").exists() or (model_dir / "model.safetensors").exists()
@@ -135,7 +145,7 @@ def run_checks():
         except Exception as exc:
             checks.append((mod, False, str(exc)))
     ok_model, detail = ensure_model()
-    checks.append((f"Modelo {MODEL_DIRNAME}", ok_model, detail))
+    checks.append((f"Modelo {model_dirname()}", ok_model, detail))
     env = load_env()
     missing = [k for k in ("REMOTE_URL", "ENCRYPTION_SECRET") if not env.get(k)]
     checks.append(("Configuración .env", not missing,
@@ -184,44 +194,83 @@ class ClientApp:
         self.run_bg(detect_ip, done=self._on_ip_detected)
 
     # ── UI ────────────────────────────────────────────────────────────────
+    def _setup_style(self):
+        self.style = ttk.Style(self.root)
+        try:
+            self.style.theme_use("clam")
+        except tk.TclError:
+            pass
+        bg = "#f4f5f7"
+        fg = "#1f2430"
+        accent = "#4f6ef7"
+        self.root.configure(bg=bg)
+        self.style.configure(".", background=bg, foreground=fg, font=("Segoe UI", 10))
+        self.style.configure("TFrame", background=bg)
+        self.style.configure("TLabel", background=bg, foreground=fg)
+        self.style.configure("Header.TLabel", background=bg, foreground=fg,
+                             font=("Segoe UI", 17, "bold"))
+        self.style.configure("Sub.TLabel", background=bg, foreground="#6b7280",
+                             font=("Segoe UI", 10))
+        self.style.configure("TLabelframe", background=bg, bordercolor="#d7dae0")
+        self.style.configure("TLabelframe.Label", background=bg, foreground="#374151",
+                             font=("Segoe UI", 10, "bold"))
+        self.style.configure("TEntry", padding=7, fieldbackground="white")
+        self.style.configure("TButton", padding=(14, 7))
+        self.style.configure("Accent.TButton", background=accent, foreground="white",
+                             font=("Segoe UI", 10, "bold"))
+        self.style.map("Accent.TButton",
+                       background=[("active", "#3d59d1"), ("disabled", "#b7c1e8")],
+                       foreground=[("disabled", "#f3f4f6")])
+
     def build_ui(self):
-        tk.Label(self.root, text="Estado del sistema", font=("", 10, "bold")).pack(
-            anchor="w", padx=8, pady=(8, 2))
-        self.status_text = scrolledtext.ScrolledText(self.root, height=7, state="disabled")
-        self.status_text.pack(fill="x", padx=8)
+        self._setup_style()
 
-        tk.Label(self.root, text="Configuración (se guarda en .env)", font=("", 10, "bold")).pack(
-            anchor="w", padx=8, pady=(8, 2))
-        cfg = tk.Frame(self.root)
-        cfg.pack(fill="x", padx=8)
+        header = ttk.Frame(self.root, style="TFrame", padding=(18, 14))
+        header.pack(fill="x")
+        ttk.Label(header, text="Cliente Ollama Privado", style="Header.TLabel").pack(anchor="w")
+        ttk.Label(header, text="Conexión cifrada AES-GCM · anonimización BERT local",
+                  style="Sub.TLabel").pack(anchor="w")
+
+        status_frame = ttk.LabelFrame(self.root, text="Estado del sistema", padding=10)
+        status_frame.pack(fill="x", padx=18, pady=(4, 0))
+        self.status_text = scrolledtext.ScrolledText(
+            status_frame, height=6, state="disabled", font=("Consolas", 9),
+            bg="#ffffff", fg="#1f2430", relief="flat", borderwidth=0)
+        self.status_text.pack(fill="x")
+
+        cfg_frame = ttk.LabelFrame(self.root, text="Configuración (se guarda en .env)", padding=10)
+        cfg_frame.pack(fill="x", padx=18, pady=(10, 0))
         for i, key in enumerate(CONFIG_KEYS):
-            tk.Label(cfg, text=CONFIG_LABELS[key], anchor="e").grid(
-                row=i, column=0, sticky="e", padx=(0, 6), pady=2)
+            ttk.Label(cfg_frame, text=CONFIG_LABELS[key]).grid(
+                row=i, column=0, sticky="e", padx=(0, 8), pady=4)
             var = tk.StringVar(value=self.env.get(key, ""))
-            tk.Entry(cfg, textvariable=var, width=60).grid(
-                row=i, column=1, sticky="we", pady=2)
+            ttk.Entry(cfg_frame, textvariable=var, width=58).grid(
+                row=i, column=1, sticky="we", pady=4)
             self.vars[key] = var
-        cfg.columnconfigure(1, weight=1)
+        cfg_frame.columnconfigure(1, weight=1)
 
-        btns = tk.Frame(self.root)
-        btns.pack(fill="x", padx=8, pady=8)
-        tk.Button(btns, text="Detectar IP", command=self.on_detect_ip).pack(side="left", padx=4)
-        self.start_btn = tk.Button(btns, text="Arrancar", command=self.on_start)
-        self.start_btn.pack(side="left", padx=4)
-        self.stop_btn = tk.Button(btns, text="Parar", command=self.on_stop, state="disabled")
-        self.stop_btn.pack(side="left", padx=4)
+        btns = ttk.Frame(self.root, style="TFrame", padding=(18, 10))
+        btns.pack(fill="x")
+        ttk.Button(btns, text="Detectar IP", command=self.on_detect_ip).pack(side="left", padx=(0, 8))
+        self.start_btn = ttk.Button(btns, text="Arrancar", style="Accent.TButton", command=self.on_start)
+        self.start_btn.pack(side="left", padx=(0, 8))
+        self.stop_btn = ttk.Button(btns, text="Parar", command=self.on_stop, state="disabled")
+        self.stop_btn.pack(side="left")
 
-        tk.Label(self.root, text="Chat", font=("", 10, "bold")).pack(
-            anchor="w", padx=8, pady=(8, 2))
-        self.chat_text = scrolledtext.ScrolledText(self.root, height=14, state="disabled")
-        self.chat_text.pack(fill="both", expand=True, padx=8)
-        inrow = tk.Frame(self.root)
-        inrow.pack(fill="x", padx=8, pady=(4, 8))
-        self.input = tk.Entry(inrow, state="disabled")
+        chat_frame = ttk.LabelFrame(self.root, text="Chat", padding=10)
+        chat_frame.pack(fill="both", expand=True, padx=18, pady=(10, 18))
+        self.chat_text = scrolledtext.ScrolledText(
+            chat_frame, height=14, state="disabled", font=("Segoe UI", 10),
+            bg="#ffffff", fg="#1f2430", relief="flat", borderwidth=0)
+        self.chat_text.pack(fill="both", expand=True)
+        inrow = ttk.Frame(chat_frame, style="TFrame")
+        inrow.pack(fill="x", pady=(8, 0))
+        self.input = ttk.Entry(inrow, state="disabled")
         self.input.pack(side="left", fill="x", expand=True)
         self.input.bind("<Return>", self.on_send)
-        self.send_btn = tk.Button(inrow, text="Enviar", command=self.on_send, state="disabled")
-        self.send_btn.pack(side="left", padx=(6, 0))
+        self.send_btn = ttk.Button(inrow, text="Enviar", style="Accent.TButton",
+                                   command=self.on_send, state="disabled")
+        self.send_btn.pack(side="left", padx=(8, 0))
 
     # ── Helpers UI ────────────────────────────────────────────────────────
     def status(self, msg):
@@ -255,6 +304,13 @@ class ClientApp:
             if done:
                 self._ui(done, result)
         threading.Thread(target=target, daemon=True).start()
+
+    # ── Comprobaciones ────────────────────────────────────────────────────
+    def _on_checks(self, checks):
+        for label, ok, detail in checks:
+            mark = "✓" if ok else "✗"
+            self.status(f"{mark} {label}: {detail}")
+        self.status("Comprobaciones terminadas.")
 
     # ── IP ────────────────────────────────────────────────────────────────
     def on_detect_ip(self):

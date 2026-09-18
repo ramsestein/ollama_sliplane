@@ -45,7 +45,7 @@ AUTH_PASSWORD = read_env("AUTH_PASSWORD")
 LOCAL_PORT = int(read_env("LOCAL_PORT") or "11434")
 DEFAULT_MODEL = read_env("OLLAMA_MODEL") or "gemma3:270m"
 
-if not SECRET:
+if __name__ == "__main__" and not SECRET:
     sys.stderr.write("Falta ENCRYPTION_SECRET en .env\n")
     sys.exit(1)
 

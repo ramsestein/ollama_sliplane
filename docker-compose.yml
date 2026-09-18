@@ -4,7 +4,6 @@ services:
     container_name: llm-propio-ollama
     ports:
       - "8000:8000"                    # proxy cifrado (cara pública)
-      - "127.0.0.1:11434:11434"         # Ollama directo, solo accesible en local
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b}
       OLLAMA_KEEP_ALIVE: "-1"
@@ -14,7 +13,15 @@ services:
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       PROXY_PORT: "8000"
     volumes:
-      - ollama-data:/root/.ollama
+      - ollama-data:/home/app/.ollama
+    # ── Hardening ──────────────────────────────────────────────────────────
+    read_only: true                    # sistema de ficheros de solo lectura
+    tmpfs:
+      - /tmp                           # Ollama necesita /tmp escribible
+    cap_drop:
+      - ALL                            # sin capacidades del kernel
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
 
 volumes:

@@ -1,20 +1,40 @@
-# Ollama propio en Docker (para desplegar en Sliplane)
+# Ollama Privado Cifrado
 
-Contenedor de [Ollama](https://ollama.com) con un **proxy de cifrado** delante.
-Al arrancar: levanta Ollama (solo accesible internamente), descarga el modelo y
-expone un proxy que cifra/descifra toda la comunicación en ambos sentidos.
+Servidor **Ollama** autocontenido en Docker con un **proxy de cifrado** delante y
+un **cliente de escritorio** que anonimiza entidades sensibles con **BERT** y
+**expresiones regulares** antes de enviar los datos al servidor.
+
+La comunicación se cifra en la aplicación con **AES-256-GCM** y una clave que rota
+cada 5 minutos (además del HTTPS del despliegue). El servidor **nunca recibe los
+datos reales**: el cliente los sustituye por placeholders y solo el cliente puede
+revertirlos.
+
+## Características
+
+- Servidor Ollama en Docker, listo para desplegar en Sliplane u otro proveedor.
+- Proxy de cifrado AES-GCM con clave rotatoria, Basic Auth y lista blanca de IPs.
+- Cliente de escritorio (GUI) que detecta tu IP y arranca/para el Ollama local.
+- Anonimización local con BERT (`bsc-bio-ehr-es-carmen-anon`) + regex.
+- Endpoint compatible con Ollama (`local_ollama.py`) para VS Code, Codex, Open WebUI, etc.
+- Imagen Docker endurecida: usuario no-root, FS de solo lectura y sin capacidades.
 
 ## Arquitectura
 
 ```mermaid
 flowchart LR
-    C[Cliente client.py] -- "HTTPS + cifrado AES-GCM" --> P[Proxy :8000]
-    P -- "HTTP local" --> O[Ollama :11434]
+    subgraph Cliente
+      GUI[Cliente GUI] --> AN[Anonimizador BERT + regex]
+      LO[Ollama virtual :11434] --> AN
+    end
+    AN -- "AES-GCM sobre HTTPS" --> PX[Proxy :8000]
+    PX -- "HTTP local" --> OL[Ollama :11434]
 ```
 
-- `client.py` cifra la petición con una clave que **rota cada 5 minutos**.
-- El proxy descifra, reenvía a Ollama y cifra la respuesta de vuelta.
-- Ollama escucha solo en `127.0.0.1:11434`, nunca expuesto al exterior.
+- El **cliente** detecta entidades (nombres, fechas, teléfonos, direcciones…) y
+  las sustituye por placeholders `[ETIQUETA_n]`; el mapa `placeholder → real`
+  vive solo en el cliente.
+- El **proxy** descifra la petición, la reenvía a Ollama y cifra la respuesta.
+- **Ollama** escucha solo en `127.0.0.1:11434`, nunca expuesto al exterior.
 
 ## Cifrado
 
@@ -27,128 +47,151 @@ ventana = timestamp_unix // 300
 ```
 
 Cifrado autenticado con **AES-256-GCM**. Se tolera un desfase de reloj de
-+/- 1 ventana (10 minutos) entre cliente y servidor.
+±1 ventana (10 minutos) entre cliente y servidor.
+
+## Estructura del repositorio
+
+```
+├── proxy.py            # Proxy cifrado (servidor)
+├── secure.py           # AES-GCM con clave rotatoria (compartido)
+├── entrypoint.sh       # Arranque del contenedor (Ollama + modelo + proxy)
+├── Dockerfile
+├── docker-compose.yml
+├── client_app.py       # Cliente de escritorio (GUI, Tkinter)
+├── local_ollama.py     # Endpoint Ollama local -> proxy remoto cifrado
+├── client.py           # Cliente CLI de prueba
+├── anonymizer.py       # Anonimización BERT + regex (placeholders reversibles)
+├── lista_blanca.txt    # Términos que no se anonimizan
+├── requirements.txt    # Dependencias del cliente
+├── tests/              # Tests pytest
+└── .github/workflows/  # CI (tests + build de imagen)
+```
 
 ## Requisitos
 
-- Docker (y Docker Compose para la prueba local)
-- Python 3 + `cryptography` para el cliente (`pip install cryptography`)
-- Un repositorio de GitHub (Sliplane lo despliega desde ahí)
+- **Servidor**: Docker + Docker Compose.
+- **Cliente**: Python 3.9+ con `cryptography`; para anonimizar, además
+  `torch`, `transformers` y `numpy` (ver `requirements.txt`).
+
+## Instalación
+
+### Servidor (Docker)
+
+```bash
+cp .env.example .env   # edita ENCRYPTION_SECRET, AUTH_*, ALLOWED_IPS, OLLAMA_MODEL
+docker compose up --build
+```
+
+### Cliente
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env   # URL del servidor + mismo secreto compartido
+python client_app.py   # o run_client.bat (Windows) / run_client.sh (Linux)
+```
+
+## Uso
+
+### Cliente de escritorio
+
+Al abrir `client_app.py`:
+
+1. Comprueba que el modelo BERT está en `models/` (si no, intenta descargarlo).
+2. Ejecuta unas comprobaciones mínimas del sistema.
+3. Muestra la configuración precargada de `.env` y detecta tu IP.
+4. Con **Arrancar**: hace ping al servidor (`/health` → 200) y abre el chat.
+5. Levanta `local_ollama.py` para que VS Code / Codex / etc. se conecten.
+6. Con **Parar** o al cerrar la ventana, detiene el Ollama local.
+
+### Endpoint Ollama local (VS Code, Codex, Open WebUI…)
+
+```bash
+python local_ollama.py
+```
+
+Deja el proceso corriendo y apunta tus herramientas a `http://127.0.0.1:11434`.
+Toda petición que pase por ahí se anonimiza antes de cifrarse.
+
+### Cliente CLI
+
+```bash
+python client.py --url https://tu-app.sliplane.app --model llama3.2:3b
+```
+
+## Anonimización
+
+```mermaid
+flowchart LR
+    A[Texto real] --> B[Detectar entidades: BERT + regex]
+    B --> C[Sustituir por [ETIQUETA_n]]
+    C --> D[Cifrar y enviar]
+    D --> E[Respuesta con placeholders]
+    E --> F[Restaurar valores reales]
+    F --> G[Mostrar al usuario]
+```
+
+El modelo BERT usado se configura con la variable `BERT_MODEL` (repo de
+Hugging Face). Por defecto: `PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon`.
 
 ## Configuración
 
 Variables de entorno (en `.env` para local, en el panel de Sliplane para prod):
 
-| Variable            | Descripción                                        |
-|---------------------|----------------------------------------------------|
-| `OLLAMA_MODEL`      | Modelo a descargar (defecto `gemma2:2b`)           |
-| `ENCRYPTION_SECRET` | Secreto compartido para el cifrado (obligatorio)   |
-| `AUTH_USER`         | Usuario de acceso al proxy (Basic Auth)            |
-| `AUTH_PASSWORD`     | Contraseña del proxy (Basic Auth)                  |
-| `ALLOWED_IPS`       | IPs permitidas, separadas por comas (admite CIDR)  |
-| `PROXY_PORT`        | Puerto del proxy (defecto `8000`)                  |
-
-Copia la plantilla y edítala (el `.env` no se sube a git):
-
-```bash
-cp .env.example .env
-```
-
-## Probar localmente
-
-```bash
-docker compose up --build
-```
-
-- Proxy cifrado: `http://localhost:8000`
-- Ollama directo (solo local): `http://localhost:11434`
-
-Con el cliente cifrado:
-
-```bash
-pip install cryptography
-python client.py --url http://localhost:8000 --model gemma3:270m
-```
-
-O directamente con `curl` al endpoint local sin cifrar (solo desarrollo):
-
-```bash
-curl http://localhost:11434/api/tags
-```
-
-## Usar como Ollama local (VS Code, Open WebUI, etc.)
-
-Puedes ejecutar un "Ollama virtual" en tu máquina que reenvía al proxy remoto
-cifrado. Así cualquier herramienta que hable con Ollama local
-(`http://127.0.0.1:11434`) usa el modelo alojado en Sliplane como si fuera local.
-
-```bash
-pip install cryptography
-python local_ollama.py
-```
-
-Deja el proceso corriendo y apunta tus herramientas a `http://127.0.0.1:11434`:
-
-- **VS Code** con extensiones compatibles con Ollama (p. ej. Continue, Ollama
-  Autocoder): configura el endpoint Ollama a `http://127.0.0.1:11434`.
-- **`ollama` CLI** (si lo tienes instalado):
-  `OLLAMA_HOST=http://127.0.0.1:11434 ollama list` y
-  `OLLAMA_HOST=http://127.0.0.1:11434 ollama run gemma3:270m`.
-- **Open WebUI** u otras apps: apunta el endpoint Ollama a `http://127.0.0.1:11434`.
-
-Opciones del cliente local:
-
-```bash
-python local_ollama.py --remote https://ollama-sliplane.sliplane.app --port 11434
-```
-
-## Modelo
-
-Por defecto se descarga `gemma2:2b` (~1.6 GB). Nota: ni `gemma4:2b` ni
-`gemma3:2b` existen en el catálogo de Ollama (Gemma 3 solo está en 1B, 4B, 12B y
-27B). Alternativas: `gemma3:270m`, `gemma3:1b`, `gemma3:4b`, `llama3.2:3b`, etc.
+| Variable            | Descripción                                          |
+|---------------------|------------------------------------------------------|
+| `OLLAMA_MODEL`      | Modelo de Ollama a descargar                         |
+| `OLLAMA_KEEP_ALIVE` | Mantener el modelo en memoria (`-1` = siempre)       |
+| `ENCRYPTION_SECRET` | Secreto compartido para el cifrado (obligatorio)     |
+| `AUTH_USER`         | Usuario del proxy (Basic Auth)                       |
+| `AUTH_PASSWORD`     | Contraseña del proxy (Basic Auth)                    |
+| `ALLOWED_IPS`       | IPs permitidas, separadas por comas (admite CIDR)    |
+| `BERT_MODEL`        | Repo de Hugging Face del modelo de anonimización     |
+| `PROXY_PORT`        | Puerto del proxy (defecto `8000`)                    |
+| `LOCAL_PORT`        | Puerto local del Ollama virtual (defecto `11434`)    |
 
 ## Desplegar en Sliplane
 
 1. Sube este repositorio a GitHub.
-2. En Sliplane, crea un servicio y conéctalo a tu repositorio
-   (ahí introduces las credenciales de acceso a GitHub).
-3. Configura el servicio:
-   - **Build**: detecta automáticamente el `Dockerfile` en la raíz.
-   - **Puerto**: `8000` (el proxy; `11434` queda interno).
-   - **Volumen persistente**: monta uno en `/root/.ollama` para no
-     redescargar el modelo en cada reinicio.
-   - **Variables de entorno**:
-     - `OLLAMA_MODEL=gemma3:270m` (o el que quieras)
-     - `ENCRYPTION_SECRET=<tu secreto>`
-     - `AUTH_USER=admin`
-     - `AUTH_PASSWORD=<tu contraseña>`
-     - `ALLOWED_IPS=203.229.141.235` (tu IP pública)
-4. Despliega. Obtendrás una URL pública HTTPS, p. ej.
-   `https://tu-app.sliplane.app`.
+2. En Sliplane, crea un servicio conectado al repositorio.
+3. Configura:
+   - **Puerto**: `8000`.
+   - **Volumen persistente** en `/home/app/.ollama` (para no redescargar el modelo).
+   - **Variables de entorno**: `OLLAMA_MODEL`, `ENCRYPTION_SECRET`, `AUTH_USER`,
+     `AUTH_PASSWORD`, `ALLOWED_IPS`.
+4. Despliega. Obtendrás una URL pública HTTPS.
 
-Probar el despliegue con el cliente cifrado:
+Probar el despliegue:
 
 ```bash
-python client.py --url https://tu-app.sliplane.app --model gemma3:270m
+python client.py --url https://tu-app.sliplane.app --model llama3.2:3b
 ```
 
 ## Seguridad
 
-- Sliplane expone la app con **HTTPS**.
-- El proxy añade **cifrado de aplicación** (AES-GCM con clave rotatoria) en
-  ambos sentidos, además del HTTPS.
-- Ollama queda **sin exponer** (solo `127.0.0.1:11434`).
+- HTTPS en el despliegue + **cifrado de aplicación** AES-GCM en ambos sentidos.
+- Ollama **sin exponer** (solo `127.0.0.1:11434` dentro del contenedor).
+- Imagen **endurecida**: usuario no-root, sistema de ficheros de solo lectura,
+  `cap_drop: ALL` y `no-new-privileges`.
 - El secreto vive en `.env` (local, no versionado) y en las variables de
-  entorno/secretos de Sliplane. No lo subas nunca al repositorio.
-- El proxy exige **usuario/contraseña** (Basic Auth) y **lista blanca de IPs**
-  (`ALLOWED_IPS`). Configúralos en Sliplane igual que en tu `.env`.
-- La IP del cliente se lee de `X-Forwarded-For` (lo reenvía el router de
-  Sliplane). Si tu IP pública es dinámica, tendrás que actualizar `ALLOWED_IPS`
-  cuando cambie.
+  entorno/secretos del proveedor. Nunca se hornea en la imagen.
+- El proxy exige **Basic Auth** y **lista blanca de IPs**.
+- La anonimización garantiza que el servidor **no reciba datos personales**:
+  recibe placeholders y no puede revertirlos.
 
-## Notas de rendimiento
+## Tests
 
-Sliplane suele ofrecer solo CPU. Los modelos pequeños (`gemma3:270m`,
-`gemma3:1b`) responden rápido; `gemma2:2b` funciona en CPU con latencia mayor.
-Revisa si tu plan incluye instancias con GPU para modelos más grandes.
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+Los tests cubren `secure.py`, `anonymizer.py`, `proxy.py` y `local_ollama.py`
+sin necesidad de descargar el modelo BERT.
+
+## Citar
+
+Si usas este software, cítalo usando la información de [`CITATION.cff`](CITATION.cff).
+
+## Licencia
+
+MIT. Ver [`LICENSE`](LICENSE).

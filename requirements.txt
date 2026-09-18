@@ -1,0 +1,7 @@
+# Dependencias del cliente (client_app.py, local_ollama.py, anonymizer.py)
+# El servidor (Docker) instala cryptography vía apt (ver Dockerfile).
+cryptography>=42.0
+numpy>=1.26
+torch>=2.1
+transformers>=4.40
+huggingface_hub>=0.23

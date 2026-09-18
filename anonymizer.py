@@ -15,13 +15,31 @@ import os
 import re
 from pathlib import Path
 
-import numpy as np
-import torch
-from transformers import AutoModelForTokenClassification, AutoTokenizer
-
 ROOT = Path(__file__).resolve().parent
+DEFAULT_MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
 DEFAULT_MODEL_DIR = Path(os.environ.get("CARMINA_MODEL_DIR", ROOT / "models"))
-MODEL_DIRNAME = "bsc-bio-ehr-es-carmen-anon"
+
+
+def _read_env(key, default=""):
+    if os.environ.get(key):
+        return os.environ[key]
+    try:
+        with open(ROOT / ".env", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith(key + "="):
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return default
+
+
+def model_repo():
+    return _read_env("BERT_MODEL", DEFAULT_MODEL_REPO)
+
+
+def model_dirname():
+    return model_repo().split("/")[-1]
 
 # ── Taxonomía unificada ─────────────────────────────────────────────────────
 # BRAT (CARMEN) -> taxonomía unificada
@@ -224,11 +242,14 @@ class Anonymizer:
     BATCH_SIZE = 32
 
     def __init__(self, model_dir=None, device=None, threshold=0.1):
+        import torch
+        from transformers import AutoModelForTokenClassification, AutoTokenizer
+
         self.model_dir = Path(model_dir) if model_dir else DEFAULT_MODEL_DIR
         self.device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
         self.threshold = threshold
 
-        model_path = self.model_dir / MODEL_DIRNAME
+        model_path = self.model_dir / model_dirname()
         if not model_path.exists():
             raise FileNotFoundError(f"Modelo no encontrado: {model_path}")
         self.tokenizer = AutoTokenizer.from_pretrained(str(model_path), local_files_only=True)
@@ -245,6 +266,9 @@ class Anonymizer:
 
     # ── Detección BERT ────────────────────────────────────────────────────
     def _bert_detect(self, text: str) -> list[dict]:
+        import numpy as np
+        import torch
+
         enc = self.tokenizer(
             text,
             return_overflowing_tokens=True,
