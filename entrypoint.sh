@@ -2,6 +2,7 @@
 set -e
 
 MODEL="${OLLAMA_MODEL:-gemma2:2b}"
+PROXY_PORT="${PROXY_PORT:-8000}"
 
 echo ">> Iniciando servidor Ollama..."
 ollama serve &
@@ -39,5 +40,10 @@ until ollama pull "$MODEL"; do
   sleep 5
 done
 
-echo ">> Modelo listo. Ollama escuchando en el puerto 11434."
-wait "$SERVER_PID"
+echo ">> Modelo listo. Arrancando proxy cifrado en el puerto $PROXY_PORT..."
+python3 /app/proxy.py &
+PROXY_PID=$!
+
+trap 'kill "$PROXY_PID" "$SERVER_PID" 2>/dev/null || true' TERM INT
+
+wait "$PROXY_PID"

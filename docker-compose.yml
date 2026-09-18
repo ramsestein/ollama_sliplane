@@ -3,9 +3,12 @@ services:
     build: .
     container_name: llm-propio-ollama
     ports:
-      - "11434:11434"
+      - "8000:8000"                    # proxy cifrado (cara pública)
+      - "127.0.0.1:11434:11434"         # Ollama directo, solo accesible en local
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b}
+      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?Define ENCRYPTION_SECRET en .env}
+      PROXY_PORT: "8000"
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped

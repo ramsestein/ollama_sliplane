@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Cliente de prueba para el proxy cifrado de Ollama."""
+import argparse
+import json
+import os
+import sys
+import urllib.request
+
+import secure
+
+
+def load_secret(cli_secret):
+    if cli_secret:
+        return cli_secret
+    env = os.environ.get("ENCRYPTION_SECRET")
+    if env:
+        return env
+    try:
+        with open(".env", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith("ENCRYPTION_SECRET="):
+                    return line.split("=", 1)[1]
+    except OSError:
+        pass
+    sys.stderr.write("Falta ENCRYPTION_SECRET (pásala con --secret o en .env)\n")
+    sys.exit(1)
+
+
+def secure_request(secret, base_url, method, path, body):
+    inner = {"method": method, "path": path, "body": body}
+    envelope = secure.encrypt(secret, json.dumps(inner).encode("utf-8"))
+    data = json.dumps(envelope).encode("utf-8")
+    req = urllib.request.Request(
+        base_url + "/secure/request",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=600) as resp:
+        resp_envelope = json.loads(resp.read().decode("utf-8"))
+    return json.loads(secure.decrypt(secret, resp_envelope).decode("utf-8"))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Cliente cifrado para Ollama")
+    parser.add_argument(
+        "--url",
+        default=os.environ.get("OLLAMA_URL", "https://ollama-sliplane.sliplane.app"),
+    )
+    parser.add_argument("--secret", help="Secreto de cifrado (o ENCRYPTION_SECRET/.env)")
+    parser.add_argument("--model", default="gemma3:270m")
+    parser.add_argument("--prompt", default="Responde en una frase: ¿qué es Ollama?")
+    args = parser.parse_args()
+
+    secret = load_secret(args.secret)
+    base = args.url.rstrip("/")
+
+    # 1) health
+    try:
+        with urllib.request.urlopen(base + "/health", timeout=30) as resp:
+            health = json.loads(resp.read().decode("utf-8"))
+        print("[OK] Proxy vivo. Ventana del servidor: %s" % health.get("window"))
+    except Exception as exc:  # noqa: BLE001
+        print("[AVISO] /health no respondió: %s" % exc)
+
+    # 2) chat cifrado
+    body = {
+        "model": args.model,
+        "messages": [{"role": "user", "content": args.prompt}],
+        "stream": False,
+    }
+    result = secure_request(secret, base, "POST", "/v1/chat/completions", body)
+    if result.get("status") != 200:
+        print("[FALLO] El servidor respondió %s: %s" % (result.get("status"), result.get("body")))
+        sys.exit(1)
+    content = result["body"]["choices"][0]["message"]["content"]
+    print("[OK] Respuesta:")
+    print(content)
+
+
+if __name__ == "__main__":
+    main()

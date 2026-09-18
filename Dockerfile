@@ -1,27 +1,35 @@
 # Imagen base oficial de Ollama
 FROM ollama/ollama:latest
 
-# curl para comprobar que el servidor está listo y para el healthcheck
+# curl (healthchecks) + python3 para el proxy cifrado
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl python3 python3-cryptography \
     && rm -rf /var/lib/apt/lists/*
 
-# Script de arranque: inicia Ollama y descarga el modelo
+WORKDIR /app
+
+# Criptografía compartida y proxy cifrado
+COPY secure.py proxy.py /app/
+
+# Script de arranque: Ollama + descarga del modelo + proxy
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Escuchar en todas las interfaces para poder exponerlo al exterior
-ENV OLLAMA_HOST=0.0.0.0:11434
+# Ollama solo escucha dentro del contenedor; el proxy es la cara pública
+ENV OLLAMA_HOST=127.0.0.1:11434
+ENV OLLAMA_URL=http://127.0.0.1:11434
+ENV PROXY_PORT=8000
 
-# Modelo que se descarga al arrancar (cambiable vía variable de entorno)
+# Modelo y secreto de cifrado (se sobrescriben por variables de entorno)
 ENV OLLAMA_MODEL=gemma2:2b
+ENV ENCRYPTION_SECRET=""
 
-EXPOSE 11434
+EXPOSE 8000
 
 # Volumen para persistir los modelos descargados entre despliegues
 VOLUME ["/root/.ollama"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS http://localhost:11434/api/version >/dev/null || exit 1
+    CMD curl -fsS http://localhost:8000/health >/dev/null || exit 1
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
