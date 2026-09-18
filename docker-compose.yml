@@ -3,7 +3,7 @@ services:
     build: .
     container_name: llm-propio-ollama
     ports:
-      - "8000:8000"                    # proxy cifrado (cara pública)
+      - "8000:8000"                    # encrypted proxy (public face)
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b}
       OLLAMA_KEEP_ALIVE: "-1"
@@ -15,11 +15,11 @@ services:
     volumes:
       - ollama-data:/home/app/.ollama
     # ── Hardening ──────────────────────────────────────────────────────────
-    read_only: true                    # sistema de ficheros de solo lectura
+    read_only: true                    # read-only filesystem
     tmpfs:
-      - /tmp                           # Ollama necesita /tmp escribible
+      - /tmp                           # Ollama needs a writable /tmp
     cap_drop:
-      - ALL                            # sin capacidades del kernel
+      - ALL                            # drop kernel capabilities
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped

@@ -4,17 +4,17 @@ set -e
 MODEL="${OLLAMA_MODEL:-gemma2:2b}"
 PROXY_PORT="${PROXY_PORT:-8000}"
 
-# Mantener el modelo cargado en memoria para evitar arranques en frío.
+# Keep the model loaded in memory to avoid cold starts.
 export OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:--1}"
 
-echo ">> Iniciando servidor Ollama..."
+echo ">> Starting Ollama server..."
 ollama serve &
 SERVER_PID=$!
 
-# Reenvía señales de terminación al proceso de Ollama
+# Forward termination signals to the Ollama process
 trap 'kill "$SERVER_PID" 2>/dev/null || true' TERM INT
 
-echo ">> Esperando a que Ollama esté listo..."
+echo ">> Waiting for Ollama to be ready..."
 READY=0
 for _ in $(seq 1 90); do
   if curl -fsS http://localhost:11434/api/version >/dev/null 2>&1; then
@@ -25,35 +25,35 @@ for _ in $(seq 1 90); do
 done
 
 if [ "$READY" -ne 1 ]; then
-  echo ">> Ollama no arrancó a tiempo" >&2
+  echo ">> Ollama did not start in time" >&2
   exit 1
 fi
 
-echo ">> Descargando el modelo '$MODEL' (si ya está en el volumen, lo usa directamente)..."
+echo ">> Downloading model '$MODEL' (uses the volume if already present)..."
 ATTEMPT=1
 MAX_ATTEMPTS=3
 until ollama pull "$MODEL"; do
   if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-    echo ">> No se pudo descargar el modelo '$MODEL' tras $MAX_ATTEMPTS intentos." >&2
-    echo ">> Verifica que el nombre existe en https://ollama.com/library" >&2
+    echo ">> Could not download model '$MODEL' after $MAX_ATTEMPTS attempts." >&2
+    echo ">> Check that the name exists at https://ollama.com/library" >&2
     exit 1
   fi
-  echo ">> Reintentando descarga ($ATTEMPT/$MAX_ATTEMPTS)..."
+  echo ">> Retrying download ($ATTEMPT/$MAX_ATTEMPTS)..."
   ATTEMPT=$((ATTEMPT + 1))
   sleep 5
 done
 
-echo ">> Calentando el modelo '$MODEL' (carga en memoria)..."
+echo ">> Warming up model '$MODEL' (loading into memory)..."
 if curl -fsS http://localhost:11434/api/chat \
     -H "Content-Type: application/json" \
     -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"stream\":false}" \
     >/dev/null; then
-  echo ">> Modelo cargado y residente en memoria."
+  echo ">> Model loaded and resident in memory."
 else
-  echo ">> Aviso: el calentamiento falló; se cargará en la primera petición." >&2
+  echo ">> Warning: warm-up failed; it will load on the first request." >&2
 fi
 
-echo ">> Modelo listo. Arrancando proxy cifrado en el puerto $PROXY_PORT..."
+echo ">> Model ready. Starting encrypted proxy on port $PROXY_PORT..."
 python3 /app/proxy.py &
 PROXY_PID=$!
 

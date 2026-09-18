@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Servidor local que simula Ollama y reenvía al proxy remoto cifrado.
+"""Local server that mimics Ollama and forwards to the encrypted remote proxy.
 
-Ejecuta:  python local_ollama.py
+Run:  python local_ollama.py
 
-Queda escuchando en http://127.0.0.1:11434 (el puerto por defecto de Ollama).
-Cualquier herramienta que hable con Ollama local (VS Code + extensiones,
-Open WebUI, el CLI `ollama`, etc.) puede usar el modelo alojado en Sliplane
-como si fuera local.
+It listens on http://127.0.0.1:11434 (Ollama's default port). Any tool that
+speaks to a local Ollama (VS Code + extensions, Open WebUI, the `ollama` CLI,
+etc.) can use the model hosted on Sliplane as if it were local.
 """
 import argparse
 import base64
@@ -46,7 +45,7 @@ LOCAL_PORT = int(read_env("LOCAL_PORT") or "11434")
 DEFAULT_MODEL = read_env("OLLAMA_MODEL") or "gemma3:270m"
 
 if __name__ == "__main__" and not SECRET:
-    sys.stderr.write("Falta ENCRYPTION_SECRET en .env\n")
+    sys.stderr.write("Missing ENCRYPTION_SECRET in .env\n")
     sys.exit(1)
 
 
@@ -60,7 +59,7 @@ def _auth_header():
 
 
 def forward(method, path, body=None):
-    """Envía una petición al proxy remoto (cifrada) y devuelve (status, body)."""
+    """Send an encrypted request to the remote proxy; returns (status, body)."""
     inner = {"method": method, "path": path, "body": body}
     envelope = secure.encrypt(SECRET, json.dumps(inner).encode("utf-8"))
     data = json.dumps(envelope).encode("utf-8")
@@ -82,12 +81,11 @@ def forward(method, path, body=None):
 
 
 def _ensure_chat_capability(obj):
-    """Algunos modelos base (p. ej. gemma3:270m) se reportan solo como
-    'completion'. Añadimos 'chat' para que la extensión de Ollama para VS Code
-    permita seleccionarlo como modelo de chat.
+    """Some base models (e.g. gemma3:270m) report only 'completion'. We add
+    'chat' so the VS Code Ollama extension allows selecting them as chat models.
 
-    No inyectamos 'tools': si el modelo no las soporta (p. ej. toda la familia
-    gemma3), la extensión las enviaría igualmente y Ollama respondería
+    We do NOT inject 'tools': if the model does not support them (e.g. the whole
+    gemma3 family), the extension would still send them and Ollama would respond
     HTTP 400 'does not support tools'."""
     if isinstance(obj, dict):
         caps = obj.get("capabilities")
@@ -100,7 +98,7 @@ def _ensure_chat_capability(obj):
     return obj
 
 
-# ── Capa de anonimización (opcional: BERT + regex en local) ────────────────
+# ── Anonymization layer (optional: local BERT + regex) ───────────────────
 try:
     from anonymizer import get_anonymizer
 except Exception:  # noqa: BLE001
@@ -110,7 +108,7 @@ _ANON_LOCK = threading.Lock()
 
 
 def _anonymize_body(anon, body):
-    """Anonimiza los campos de texto de una petición (in-place)."""
+    """Anonymize the text fields of a request (in-place)."""
     if not isinstance(body, dict):
         return body
     messages = body.get("messages")
@@ -124,7 +122,7 @@ def _anonymize_body(anon, body):
 
 
 def _deanonymize_body(anon, body):
-    """Restaura los placeholders de una respuesta."""
+    """Restore the placeholders of a response."""
     if not isinstance(body, dict):
         return body
     message = body.get("message")
@@ -162,8 +160,8 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
-            # El cliente (p. ej. VS Code) cerró la conexión antes de terminar.
-            # Es inofensivo y no debe imprimir un traceback.
+            # The client (e.g. VS Code) closed the connection before finishing.
+            # It is harmless and should not print a traceback.
             pass
 
     def _read_body(self):
@@ -246,12 +244,12 @@ class Handler(BaseHTTPRequestHandler):
             status, body = forward("POST", self.path, req_body)
 
         if want_stream and self.path.startswith("/v1/"):
-            # SSE para el endpoint compatible con OpenAI
+            # SSE for the OpenAI-compatible endpoint
             payload = "data: " + json.dumps(body) + "\n\ndata: [DONE]\n\n"
             self._send(status, payload, "text/event-stream")
             return
         if want_stream and isinstance(body, dict):
-            # NDJSON de una sola línea (válido para clientes de streaming)
+            # Single-line NDJSON (valid for streaming clients)
             self._send(status, json.dumps(body) + "\n", "application/x-ndjson")
             return
 

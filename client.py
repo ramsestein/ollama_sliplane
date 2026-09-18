@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cliente de prueba para el proxy cifrado de Ollama."""
+"""Test client for the encrypted Ollama proxy."""
 import argparse
 import base64
 import json
@@ -30,7 +30,7 @@ def load_secret(cli_secret):
     value = _read_env("ENCRYPTION_SECRET")
     if value:
         return value
-    sys.stderr.write("Falta ENCRYPTION_SECRET (pásala con --secret o en .env)\n")
+    sys.stderr.write("Missing ENCRYPTION_SECRET (pass it with --secret or in .env)\n")
     sys.exit(1)
 
 
@@ -53,16 +53,16 @@ def secure_request(secret, base_url, method, path, body, auth=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Cliente cifrado para Ollama")
+    parser = argparse.ArgumentParser(description="Encrypted client for Ollama")
     parser.add_argument(
         "--url",
         default=os.environ.get("OLLAMA_URL", "https://ollama-sliplane.sliplane.app"),
     )
-    parser.add_argument("--secret", help="Secreto de cifrado (o ENCRYPTION_SECRET/.env)")
-    parser.add_argument("--user", help="Usuario (o AUTH_USER/.env)")
-    parser.add_argument("--password", help="Contraseña (o AUTH_PASSWORD/.env)")
+    parser.add_argument("--secret", help="Encryption secret (or ENCRYPTION_SECRET/.env)")
+    parser.add_argument("--user", help="Username (or AUTH_USER/.env)")
+    parser.add_argument("--password", help="Password (or AUTH_PASSWORD/.env)")
     parser.add_argument("--model", default="gemma3:270m")
-    parser.add_argument("--prompt", default="Responde en una frase: ¿qué es Ollama?")
+    parser.add_argument("--prompt", default="Answer in one sentence: what is Ollama?")
     args = parser.parse_args()
 
     secret = load_secret(args.secret)
@@ -79,9 +79,9 @@ def main():
     try:
         with urllib.request.urlopen(base + "/health", timeout=30) as resp:
             health = json.loads(resp.read().decode("utf-8"))
-        print("[OK] Proxy vivo. Ventana del servidor: %s" % health.get("window"))
+        print("[OK] Proxy alive. Server window: %s" % health.get("window"))
     except Exception as exc:  # noqa: BLE001
-        print("[AVISO] /health no respondió: %s" % exc)
+        print("[WARN] /health did not respond: %s" % exc)
 
     # 2) chat cifrado
     body = {
@@ -91,10 +91,10 @@ def main():
     }
     result = secure_request(secret, base, "POST", "/v1/chat/completions", body, auth)
     if result.get("status") != 200:
-        print("[FALLO] El servidor respondió %s: %s" % (result.get("status"), result.get("body")))
+        print("[FAIL] Server responded %s: %s" % (result.get("status"), result.get("body")))
         sys.exit(1)
     content = result["body"]["choices"][0]["message"]["content"]
-    print("[OK] Respuesta:")
+    print("[OK] Response:")
     print(content)
 
 

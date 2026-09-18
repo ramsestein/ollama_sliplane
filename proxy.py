@@ -1,12 +1,12 @@
-"""Proxy cifrado delante de Ollama.
+"""Encrypted proxy in front of Ollama.
 
-Expone:
-  GET  /health         -> estado sin cifrar (para healthchecks)
-  POST /secure/request -> sobre cifrado {window, nonce, ciphertext} que contiene
-                          una petición interna {method, path, body}. Se reenvía a
-                          Ollama y la respuesta se devuelve cifrada.
+Exposes:
+  GET  /health         -> unencrypted status (for health checks)
+  POST /secure/request -> encrypted envelope {window, nonce, ciphertext} containing
+                          an inner request {method, path, body}. It is forwarded to
+                          Ollama and the response is returned encrypted.
 
-Ollama queda escuchando solo en 127.0.0.1:11434 (no accesible desde fuera).
+Ollama listens only on 127.0.0.1:11434 (never exposed to the outside).
 """
 import base64
 import hmac
@@ -36,7 +36,7 @@ def _parse_allowed_ips(raw):
             try:
                 nets.append(ipaddress.ip_network(item, strict=False))
             except ValueError:
-                sys.stderr.write("[proxy] IP inválida en ALLOWED_IPS: %s\n" % item)
+                sys.stderr.write("[proxy] invalid IP in ALLOWED_IPS: %s\n" % item)
     return nets
 
 
@@ -55,7 +55,7 @@ def _client_ip(handler):
 
 def _ip_allowed(ip):
     if not _ALLOWED_NETS:
-        return True  # sin lista configurada => sin restricción
+        return True  # no list configured => no restriction
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
@@ -65,7 +65,7 @@ def _ip_allowed(ip):
 
 def _auth_ok(headers):
     if not AUTH_USER and not AUTH_PASSWORD:
-        return True  # sin credenciales configuradas => sin restricción
+        return True  # no credentials configured => no restriction
     auth = headers.get("Authorization", "")
     expected = base64.b64encode(
         ("%s:%s" % (AUTH_USER, AUTH_PASSWORD)).encode("utf-8")

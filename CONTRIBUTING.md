@@ -1,15 +1,15 @@
-# Contribuir
+# Contributing
 
-Gracias por interesarte en este proyecto.
+Thanks for your interest in Pukara.
 
-## Entorno de desarrollo
+## Development environment
 
 ```bash
-# 1. Clonar
-git clone <url-del-repo>
-cd ollama_sliplane
+# 1. Clone
+git clone <repo-url>
+cd pukara
 
-# 2. Crear entorno virtual e instalar dependencias de desarrollo
+# 2. Create a virtual environment and install dev dependencies
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate
@@ -18,34 +18,34 @@ source .venv/bin/activate
 
 pip install -r requirements-dev.txt
 
-# 3. Copiar la configuración de ejemplo
-cp .env.example .env   # y edita .env con tus valores
+# 3. Copy the example configuration
+cp .env.example .env   # edit with your values
 ```
 
-> Nota: `torch` y `transformers` (en `requirements.txt`) solo son necesarios
-> para la anonimización BERT. Los tests unitarios no los necesitan.
+> Note: `torch` and `transformers` (in `requirements.txt`) are only needed for
+> BERT anonymization. The unit tests do not require them.
 
-## Ejecutar los tests
+## Running the tests
 
 ```bash
 python -m pytest -q
 ```
 
-Los tests cubren:
+Tests cover:
 
-- `secure.py` — cifrado/descifrado, rotación de clave y tolerancia de ventana.
-- `anonymizer.py` — mapeos de etiquetas, detección por regex y placeholders reversibles.
-- `proxy.py` — autenticación Basic y lista blanca de IPs.
-- `local_ollama.py` — anonimización/desanonimización del cuerpo de peticiones y respuestas.
+- `secure.py` — encryption/decryption, key rotation and window tolerance.
+- `anonymizer.py` — label mapping, regex detection and reversible placeholders.
+- `proxy.py` — Basic Auth and IP allowlist.
+- `local_ollama.py` — request/response anonymization.
 
-## Levantar el servidor localmente
+## Running the server locally
 
 ```bash
 docker compose up --build
 ```
 
-## Convenciones
+## Conventions
 
 - Python 3.9+.
-- Los secretos van en `.env` (nunca versionado) o en variables de entorno; no en el código.
-- Antes de un PR, ejecuta `python -m pytest -q`.
+- Secrets go in `.env` (never committed) or environment variables, not in code.
+- Run `python -m pytest -q` before opening a pull request.

@@ -1,5 +1,5 @@
-# Hace que la raíz del proyecto esté en sys.path al ejecutar los tests,
-# para poder hacer `import secure`, `import anonymizer`, etc.
+# Makes the project root available on sys.path when running the tests,
+# so that `import secure`, `import anonymizer`, etc. work.
 import sys
 from pathlib import Path
 

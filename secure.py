@@ -1,11 +1,11 @@
-"""Cifrado simétrico con rotación de clave por ventana de tiempo (5 min).
+"""Symmetric encryption with a time-window rotating key (5 minutes).
 
-La clave efectiva se deriva del secreto compartido + la ventana de tiempo:
-    key = HMAC-SHA256(secreto, "ollama-secure:{ventana}")
+The effective key is derived from the shared secret plus the time window:
+    key = HMAC-SHA256(secret, "ollama-secure:{window}")
 
-De este modo la clave cambia automáticamente cada 5 minutos. El cifrado es
-AES-256-GCM (autenticado). Se tolera un desfase de reloj de +/- 1 ventana
-(10 minutos) entre cliente y servidor.
+This makes the key rotate automatically every 5 minutes. Encryption is
+AES-256-GCM (authenticated). A clock skew of +/- 1 window (10 minutes)
+between client and server is tolerated.
 """
 import base64
 import hashlib
@@ -56,7 +56,7 @@ def encrypt(secret: str, plaintext: bytes, window=None) -> dict:
 
 
 def decrypt(secret: str, envelope: dict) -> bytes:
-    """Descifra tolerando un desfase de reloj de +/- 1 ventana (10 min)."""
+    """Decrypt tolerating a clock skew of +/- 1 window (10 minutes)."""
     w = int(envelope["window"])
     nonce = _b64d(envelope["nonce"])
     ciphertext = _b64d(envelope["ciphertext"])
@@ -66,4 +66,4 @@ def decrypt(secret: str, envelope: dict) -> bytes:
             return AESGCM(_derive_key(secret, candidate)).decrypt(nonce, ciphertext, None)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
-    raise ValueError("no se pudo descifrar") from last_error
+    raise ValueError("could not decrypt") from last_error

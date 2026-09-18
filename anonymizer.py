@@ -1,15 +1,15 @@
-"""Capa de anonimización autocontenida (BERT + regex).
+"""Self-contained anonymization layer (BERT + regex).
 
-Detecta entidades con:
-  - BERT `bsc-bio-ehr-es-carmen-anon` (token classification multiclase).
-  - Reglas regex (fechas, horas, teléfonos, nombres, direcciones, etc.).
+Detects entities with:
+  - BERT `bsc-bio-ehr-es-carmen-anon` (multiclass token classification).
+  - Regex rules (dates, times, phones, names, addresses, etc.).
 
-y las sustituye por placeholders reversibles `[ETIQUETA_n]`. El mapa
-`placeholder -> texto real` vive únicamente en el cliente: el servidor
-nunca ve los datos reales.
+and replaces them with reversible placeholders `[TAG_n]`. The
+`placeholder -> real text` map lives only on the client: the server
+never sees the real data.
 
-Sin dependencias de `carmina_3_suite/`: todo el código relevante está aquí.
-El único recurso externo es el modelo BERT, ubicado en `models/`.
+No dependencies on `carmina_3_suite/`: all the relevant code lives here.
+The only external resource is the BERT model, stored under `models/`.
 """
 import os
 import re
@@ -41,8 +41,8 @@ def model_repo():
 def model_dirname():
     return model_repo().split("/")[-1]
 
-# ── Taxonomía unificada ─────────────────────────────────────────────────────
-# BRAT (CARMEN) -> taxonomía unificada
+# ── Unified taxonomy ────────────────────────────────────────────────────────
+# BRAT (CARMEN) -> unified taxonomy
 BRAT_TO_UNIFIED = {
     "FECHAS": "DATE",
     "HORAS": "TIME",
@@ -71,7 +71,7 @@ BRAT_TO_UNIFIED = {
     "OTROS_SUJETO_ASISTENCIA": "OTHER",
 }
 
-# Etiquetas del step2 (regex) -> taxonomía unificada
+# step2 (regex) labels -> unified taxonomy
 STEP2_TO_UNIFIED = {
     "DATE": "DATE",
     "TIME": "TIME",
@@ -86,7 +86,7 @@ STEP2_TO_UNIFIED = {
     "GENERICA": "OTHER",
 }
 
-# Etiqueta unificada -> tag legible para el placeholder
+# Unified label -> readable tag for the placeholder
 TAGS = {
     "DATE": "FECHA",
     "TIME": "HORA",
@@ -119,7 +119,7 @@ def _map_step2_label(label: str) -> str:
     return STEP2_TO_UNIFIED.get(label, "OTHER")
 
 
-# ── Reglas regex (step2) ────────────────────────────────────────────────────
+# ── Regex rules (step2) ─────────────────────────────────────────────────────
 PATTERNS = {
     "date": re.compile(
         r"\b(?:0[1-9]|[12]\d|3[01]|[1-9])[./-](?:0[1-9]|1[0-2]|[1-9])[./-](?:\d{4}|\d{2})\b|"
@@ -236,7 +236,7 @@ LISTA_BLANCA = _load_whitelist()
 
 
 class Anonymizer:
-    """Detector (BERT carmen + regex) y anonimizador reversible por placeholders."""
+    """BERT (carmen) + regex detector with reversible placeholder anonymization."""
 
     STRIDE = 128
     BATCH_SIZE = 32
@@ -269,13 +269,13 @@ class Anonymizer:
         self.model = AutoModelForTokenClassification.from_pretrained(str(model_path), local_files_only=True)
         self.model.to(self.device).eval()
 
-        # Mapa y contadores para placeholders (viven por petición)
+        # Placeholder map and counters (per request)
         self.reset()
 
     def reset(self):
-        self.text_to_ph = {}   # texto real -> placeholder (consistencia)
-        self.ph_to_text = {}   # placeholder -> texto real (reversión)
-        self.counters = {}     # tag -> contador
+        self.text_to_ph = {}   # real text -> placeholder (consistency)
+        self.ph_to_text = {}   # placeholder -> real text (reversal)
+        self.counters = {}     # tag -> counter
 
     # ── Detección BERT ────────────────────────────────────────────────────
     def _bert_detect(self, text: str) -> list[dict]:
@@ -334,7 +334,7 @@ class Anonymizer:
             base = raw[2:] if raw.startswith(("B-", "I-")) else raw
             entries.append((int(om[w, t, 0]), int(om[w, t, 1]), base, float(conf[w, t])))
 
-        # Dedup por span (solape entre ventanas): mejor score
+        # Dedup by span (overlap between windows): keep best score
         best = {}
         for s, e, lab, sc in entries:
             key = (s, e)
@@ -342,7 +342,7 @@ class Anonymizer:
                 best[key] = (s, e, lab, sc)
         entries = sorted(best.values())
 
-        # Fusionar tokens contiguos con la misma etiqueta
+        # Merge contiguous tokens with the same label
         merged = []
         for s, e, lab, sc in entries:
             if merged and lab == merged[-1]["label"] and s <= merged[-1]["end"] + 1:
@@ -386,7 +386,7 @@ class Anonymizer:
         def already_marked(start, end):
             return any(s <= start and end <= e for s, e, _, _ in matches)
 
-        # Nombres precedidos de palabra clave
+        # Names preceded by a keyword
         context_pattern = re.compile(
             r"\b(" + "|".join(NAME_KEYWORDS) + r")(?=" + ROBUST_PUNC + r"|$)",
             re.IGNORECASE,
@@ -405,7 +405,7 @@ class Anonymizer:
                                 matches.append((start, end, "PERSON", name))
             current_pos += len(line) + 1
 
-        # MAYÚSCULAS con coma (apellidos, nombre)
+        # UPPERCASE with comma (surnames, name)
         for match in PATTERNS["name_upper"].finditer(text):
             name = match.group()
             clean_name = re.sub(r"[.,;:]+$", "", name).strip()
@@ -413,7 +413,7 @@ class Anonymizer:
                 if not already_marked(match.start(), match.end()):
                     matches.append((match.start(), match.end(), "GENERICA", name))
 
-        # Pase de descubrimiento: re-buscar textos ya encontrados
+        # Discovery pass: re-search texts already found
         discovered = set()
         for _, _, _, t in matches:
             clean = t.strip("()[].,;?/- ")
@@ -445,7 +445,7 @@ class Anonymizer:
         return a["start"] < b["end"] and b["start"] < a["end"]
 
     def detect(self, text: str) -> list[dict]:
-        """BERT (base) + regex (complemento que no solape con BERT)."""
+        """BERT (base) + regex (complement that does not overlap BERT)."""
         if not text or not text.strip():
             return []
         merged = list(self._bert_detect(text))
@@ -471,13 +471,13 @@ class Anonymizer:
         return text
 
     def deanonymize(self, text: str) -> str:
-        # De placeholder más largo a más corto para no romper [NOMBRE_10] con [NOMBRE_1]
+        # Longest placeholder first, to avoid breaking [NOMBRE_10] with [NOMBRE_1]
         for ph, orig in sorted(self.ph_to_text.items(), key=lambda kv: len(kv[0]), reverse=True):
             text = text.replace(ph, orig)
         return text
 
 
-# Singleton perezoso: se carga una sola vez y es opcional (si no está, None).
+# Lazy singleton: loaded once; optional (None if unavailable).
 _ANONYMIZER = None
 _ANONYMIZER_FAILED = False
 
@@ -489,7 +489,7 @@ def get_anonymizer():
             _ANONYMIZER = Anonymizer()
         except Exception as exc:  # noqa: BLE001
             _ANONYMIZER_FAILED = True
-            print(f"[anonymizer] no disponible, se envía sin anonimizar: {exc}")
+            print(f"[anonymizer] unavailable, sending without anonymization: {exc}")
     return _ANONYMIZER
 
 

@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Cliente de escritorio (GUI) para el proxy Ollama privado cifrado.
+"""Pukara desktop client (GUI) for the encrypted private Ollama proxy.
 
-Qué hace:
-  1. Comprueba si el modelo BERT está en `models/`; si no, intenta descargarlo.
-  2. Ejecuta unas comprobaciones mínimas del sistema.
-  3. Muestra una ventana con la configuración (precargada de `.env`) y detecta
-     tu IP automáticamente.
-  4. Con "Arrancar": hace ping al servidor (/health → 200) y abre el chat.
-  5. Levanta `local_ollama.py` para que VS Code / Codex / etc. se conecten.
-  6. Con "Parar" o al cerrar la ventana, detiene el Ollama local.
+What it does:
+  1. Checks the BERT model in `models/`; downloads it if missing.
+  2. Runs minimal system checks.
+  3. Shows the configuration pre-filled from `.env` and auto-detects your IP.
+  4. On "Start": pings the server (/health -> 200) and opens the chat.
+  5. Starts `local_ollama.py` so VS Code / Codex / etc. can connect.
+  6. On "Stop" or closing the window, stops the local Ollama endpoint.
 
-Ejecutar:  python client_app.py   (o run_client.bat / run_client.sh)
+Run:  python client_app.py   (or run_client.bat / run_client.sh)
 """
 import base64
 import json
@@ -35,13 +34,13 @@ CONFIG_KEYS = [
 ]
 
 CONFIG_LABELS = {
-    "REMOTE_URL": "URL del servidor",
-    "ENCRYPTION_SECRET": "Secreto de cifrado",
-    "AUTH_USER": "Usuario (basic auth)",
-    "AUTH_PASSWORD": "Contraseña (basic auth)",
-    "ALLOWED_IPS": "IPs permitidas (para el servidor)",
-    "OLLAMA_MODEL": "Modelo",
-    "LOCAL_PORT": "Puerto local Ollama",
+    "REMOTE_URL": "Server URL",
+    "ENCRYPTION_SECRET": "Encryption secret",
+    "AUTH_USER": "Username (basic auth)",
+    "AUTH_PASSWORD": "Password (basic auth)",
+    "ALLOWED_IPS": "Allowed IPs (server-side)",
+    "OLLAMA_MODEL": "Model",
+    "LOCAL_PORT": "Local Ollama port",
 }
 
 DEFAULTS = {
@@ -55,7 +54,7 @@ DEFAULTS = {
 }
 
 
-# ── Utilidades ──────────────────────────────────────────────────────────────
+# ── Utilities ──────────────────────────────────────────────────────────────
 def load_env(path=".env"):
     env = dict(DEFAULTS)
     p = ROOT / path
@@ -79,7 +78,7 @@ def model_dirname(repo=None):
 
 
 def save_env(updates: dict, path=".env"):
-    """Actualiza (o añade) claves en .env preservando comentarios."""
+    """Update (or add) keys in .env while preserving comments."""
     p = ROOT / path
     lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
     found = set()
@@ -100,7 +99,7 @@ def save_env(updates: dict, path=".env"):
 
 
 def detect_ip():
-    """Detecta la IP pública (o la local como respaldo)."""
+    """Detect the public IP (falling back to the local IP)."""
     for url in ("https://api.ipify.org", "https://ifconfig.me/ip", "https://icanhazip.com"):
         try:
             with urllib.request.urlopen(url, timeout=6) as resp:
@@ -120,19 +119,19 @@ def detect_ip():
 
 
 def ensure_model(models_dir=None):
-    """Comprueba el modelo BERT; si no está, intenta descargarlo (gated)."""
+    """Check the BERT model; download it if missing (gated repo)."""
     repo = model_repo()
     d = Path(models_dir) if models_dir else ROOT / "models"
     model_dir = d / model_dirname(repo)
     if (model_dir / "pytorch_model.bin").exists() or (model_dir / "model.safetensors").exists():
-        return True, "presente"
+        return True, "present"
     try:
         from huggingface_hub import snapshot_download  # noqa: E402
         snapshot_download(repo_id=repo, local_dir=str(model_dir))
     except Exception as exc:
-        return False, f"no descargable ({exc.__class__.__name__})"
+        return False, f"not downloadable ({exc.__class__.__name__})"
     ok = (model_dir / "pytorch_model.bin").exists() or (model_dir / "model.safetensors").exists()
-    return ok, ("descargado" if ok else "falló la descarga")
+    return ok, ("downloaded" if ok else "download failed")
 
 
 def run_checks():
@@ -141,15 +140,15 @@ def run_checks():
     for mod in ("torch", "transformers", "cryptography", "numpy"):
         try:
             __import__(mod)
-            checks.append((mod, True, "importado"))
+            checks.append((mod, True, "imported"))
         except Exception as exc:
             checks.append((mod, False, str(exc)))
     ok_model, detail = ensure_model()
-    checks.append((f"Modelo {model_dirname()}", ok_model, detail))
+    checks.append((f"Model {model_dirname()}", ok_model, detail))
     env = load_env()
     missing = [k for k in ("REMOTE_URL", "ENCRYPTION_SECRET") if not env.get(k)]
-    checks.append(("Configuración .env", not missing,
-                   "ok" if not missing else f"faltan: {', '.join(missing)}"))
+    checks.append((".env configuration", not missing,
+                   "ok" if not missing else f"missing: {', '.join(missing)}"))
     return checks
 
 
@@ -160,7 +159,7 @@ def ping_server(url):
 
 
 def secure_request(secret, base_url, method, path, body, auth=None, timeout=600):
-    """Petición cifrada al proxy remoto. Devuelve {status, body}."""
+    """Encrypted request to the remote proxy. Returns {status, body}."""
     inner = {"method": method, "path": path, "body": body}
     envelope = secure.encrypt(secret, json.dumps(inner).encode("utf-8"))
     data = json.dumps(envelope).encode("utf-8")
@@ -175,7 +174,7 @@ def secure_request(secret, base_url, method, path, body, auth=None, timeout=600)
     return json.loads(secure.decrypt(secret, resp_envelope).decode("utf-8"))
 
 
-# ── Paleta de colores (tono marrón) ────────────────────────────────────────
+# ── Color palette (brown tone) ─────────────────────────────────────────────
 COLORS = {
     "bg": "#e9dccb",
     "fg": "#3a2a1a",
@@ -188,7 +187,7 @@ COLORS = {
 
 
 class CollapsibleSection(ttk.Frame):
-    """Sección con cabecera clicable que muestra/oculta su contenido."""
+    """Section with a clickable header that shows/hides its content."""
 
     def __init__(self, parent, title, body_fill="x", body_expand=False,
                  collapsed=False, on_toggle=None, **kwargs):
@@ -235,9 +234,9 @@ class ClientApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self._fit_window()
 
-        self.status("Ejecutando comprobaciones del sistema...")
+        self.status("Running system checks...")
         self.run_bg(run_checks, done=self._on_checks,
-                    error=lambda e: self.status(f"✗ Error en comprobaciones: {e}"))
+                    error=lambda e: self.status(f"✗ Error in checks: {e}"))
         self.run_bg(detect_ip, done=self._on_ip_detected)
 
     # ── UI ────────────────────────────────────────────────────────────────
@@ -277,20 +276,20 @@ class ClientApp:
 
         header = ttk.Frame(self.root, style="TFrame", padding=(18, 14))
         header.pack(fill="x")
-        ttk.Label(header, text="Cliente Ollama Privado", style="Header.TLabel").pack(anchor="w")
-        ttk.Label(header, text="Conexión cifrada AES-GCM · anonimización BERT local",
+        ttk.Label(header, text="Pukara", style="Header.TLabel").pack(anchor="w")
+        ttk.Label(header, text="AES-GCM encrypted connection · on-device BERT anonymization",
                   style="Sub.TLabel").pack(anchor="w")
 
-        status_frame = ttk.LabelFrame(self.root, text="Estado del sistema", padding=10)
+        status_frame = ttk.LabelFrame(self.root, text="System status", padding=10)
         status_frame.pack(fill="x", padx=18, pady=(4, 0))
         self.status_text = scrolledtext.ScrolledText(
             status_frame, height=6, state="disabled", font=("Consolas", 9),
             bg=COLORS["field_bg"], fg=COLORS["fg"], relief="flat", borderwidth=0)
         self.status_text.pack(fill="x")
 
-        # Configuración: colapsable, abierta por defecto.
+        # Configuration: collapsible, open by default.
         self.config_section = CollapsibleSection(
-            self.root, "Configuración (se guarda en .env)", on_toggle=self._fit_window)
+            self.root, "Configuration (saved to .env)", on_toggle=self._fit_window)
         self.config_section.pack(fill="x", padx=18, pady=(10, 0))
         for i, key in enumerate(CONFIG_KEYS):
             ttk.Label(self.config_section.body, text=CONFIG_LABELS[key]).grid(
@@ -303,24 +302,24 @@ class ClientApp:
 
         btns = ttk.Frame(self.root, style="TFrame", padding=(18, 10))
         btns.pack(fill="x")
-        ttk.Button(btns, text="Detectar IP", command=self.on_detect_ip).pack(side="left", padx=(0, 8))
-        self.start_btn = ttk.Button(btns, text="Arrancar", style="Accent.TButton", command=self.on_start)
+        ttk.Button(btns, text="Detect IP", command=self.on_detect_ip).pack(side="left", padx=(0, 8))
+        self.start_btn = ttk.Button(btns, text="Start", style="Accent.TButton", command=self.on_start)
         self.start_btn.pack(side="left", padx=(0, 8))
-        self.stop_btn = ttk.Button(btns, text="Parar", command=self.on_stop, state="disabled")
+        self.stop_btn = ttk.Button(btns, text="Stop", command=self.on_stop, state="disabled")
         self.stop_btn.pack(side="left")
 
-        # Chat: colapsable, abierto por defecto.
+        # Chat: collapsible, open by default.
         self.chat_section = CollapsibleSection(
             self.root, "Chat", body_fill="both", body_expand=True, on_toggle=self._fit_window)
         self.chat_section.pack(fill="both", expand=True, padx=18, pady=(10, 18))
-        # La fila de entrada va anclada abajo para que siempre sea visible.
+        # The input row is anchored to the bottom so it is always visible.
         inrow = ttk.Frame(self.chat_section.body, style="TFrame")
         inrow.pack(side="bottom", fill="x", pady=(8, 0))
-        ttk.Label(inrow, text="Mensaje:", style="TLabel").pack(side="left")
+        ttk.Label(inrow, text="Message:", style="TLabel").pack(side="left")
         self.input = ttk.Entry(inrow)
         self.input.pack(side="left", fill="x", expand=True, padx=(8, 0))
         self.input.bind("<Return>", self.on_send)
-        self.send_btn = ttk.Button(inrow, text="Enviar", style="Accent.TButton",
+        self.send_btn = ttk.Button(inrow, text="Send", style="Accent.TButton",
                                    command=self.on_send, state="disabled")
         self.send_btn.pack(side="left", padx=(8, 0))
         self.chat_text = scrolledtext.ScrolledText(
@@ -336,10 +335,10 @@ class ClientApp:
                 self._icon = tk.PhotoImage(file=str(icon_path))
                 self.root.iconphoto(True, self._icon)
             except Exception as exc:
-                print(f"[icon] no se pudo cargar {icon_path}: {exc}")
+                print(f"[icon] could not load {icon_path}: {exc}")
 
     def _fit_window(self):
-        """Ajusta el tamaño de la ventana al contenido (responsive)."""
+        """Resize the window to fit its content (responsive)."""
         self.root.update_idletasks()
         w = max(self.root.winfo_reqwidth(), 640)
         h = max(self.root.winfo_reqheight(), 480)
@@ -358,7 +357,7 @@ class ClientApp:
         widget.config(state="disabled")
 
     def _ui(self, fn, *args):
-        """Programa una actualización de UI en el hilo principal, con guarda."""
+        """Schedule a UI update on the main thread, guarded."""
         try:
             if self.root.winfo_exists():
                 self.root.after(0, lambda: fn(*args))
@@ -377,12 +376,12 @@ class ClientApp:
                 self._ui(done, result)
         threading.Thread(target=target, daemon=True).start()
 
-    # ── Comprobaciones ────────────────────────────────────────────────────
+    # ── Checks ──────────────────────────────────────────────────────────
     def _on_checks(self, checks):
         for label, ok, detail in checks:
             mark = "✓" if ok else "✗"
             self.status(f"{mark} {label}: {detail}")
-        self.status("Comprobaciones terminadas.")
+        self.status("Checks finished.")
 
     # ── IP ────────────────────────────────────────────────────────────────
     def on_detect_ip(self):
@@ -391,19 +390,19 @@ class ClientApp:
     def _on_ip_detected(self, ip):
         if ip:
             self.vars["ALLOWED_IPS"].set(ip)
-            self.status(f"IP detectada: {ip}")
+            self.status(f"IP detected: {ip}")
         else:
-            self.status("⚠ No se pudo detectar la IP automáticamente")
+            self.status("⚠ Could not detect IP automatically")
 
-    # ── Arranque / parada ─────────────────────────────────────────────────
+    # ── Start / stop ────────────────────────────────────────────────────
     def on_start(self):
         updates = {k: self.vars[k].get().strip() for k in CONFIG_KEYS}
         save_env(updates)
         url = updates["REMOTE_URL"].rstrip("/")
         if not updates["ENCRYPTION_SECRET"]:
-            messagebox.showerror("Configuración", "Falta el secreto de cifrado (ENCRYPTION_SECRET).")
+            messagebox.showerror("Configuration", "Missing encryption secret (ENCRYPTION_SECRET).")
             return
-        self.status(f"Haciendo ping a {url}/health ...")
+        self.status(f"Pinging {url}/health ...")
         self.start_btn.config(state="disabled")
         self.run_bg(
             lambda: ping_server(url),
@@ -413,13 +412,13 @@ class ClientApp:
 
     def _on_ping(self, ok, url):
         if not ok:
-            self.status("✗ El servidor no respondió 200 en /health")
-            messagebox.showerror("Conexión", "El servidor no respondió 200 en /health.")
+            self.status("✗ Server did not return 200 on /health")
+            messagebox.showerror("Connection", "The server did not return 200 on /health.")
             self.start_btn.config(state="normal")
             return
-        self.status("✓ Servidor responde 200")
+        self.status("✓ Server responded 200")
         self._start_ollama()
-        self.status("Cargando anonimizador (BERT)...")
+        self.status("Loading anonymizer (BERT)...")
         self.run_bg(
             lambda: _load_anonymizer(),
             done=self._on_anon_loaded,
@@ -427,8 +426,8 @@ class ClientApp:
         )
 
     def _on_ping_error(self, exc):
-        self.status(f"✗ Error de conexión: {exc}")
-        messagebox.showerror("Conexión", f"No se pudo conectar:\n{exc}")
+        self.status(f"✗ Connection error: {exc}")
+        messagebox.showerror("Connection", f"Could not connect:\n{exc}")
         self.start_btn.config(state="normal")
 
     def _start_ollama(self):
@@ -440,19 +439,19 @@ class ClientApp:
                 [sys.executable, str(ROOT / "local_ollama.py")],
                 cwd=str(ROOT), stdout=self.log_file, stderr=self.log_file,
             )
-            self.status(f"✓ Ollama local levantado en puerto {self.vars['LOCAL_PORT'].get()}")
+            self.status(f"✓ Local Ollama started on port {self.vars['LOCAL_PORT'].get()}")
         except Exception as exc:
-            self.status(f"✗ No se pudo levantar Ollama local: {exc}")
+            self.status(f"✗ Could not start local Ollama: {exc}")
 
     def _on_anon_loaded(self, result):
         anon, error = result
         self.anon = anon
         if anon is None:
-            self.status(f"⚠ Anonimizador no disponible: {error}")
+            self.status(f"⚠ Anonymizer unavailable: {error}")
         else:
-            self.status("✓ Anonimizador listo")
-        self.status("✓ Cliente listo. Escribe tu mensaje.")
-        # Arrancar queda deshabilitado: ya estamos en marcha.
+            self.status("✓ Anonymizer ready")
+        self.status("✓ Client ready. Type your message.")
+        # Start stays disabled: we are already running.
         self.started = True
         self.stop_btn.config(state="normal")
         self.send_btn.config(state="normal")
@@ -470,7 +469,7 @@ class ClientApp:
         self.start_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
         self.send_btn.config(state="disabled")
-        self.status("Detenido. Puedes volver a Arrancar.")
+        self.status("Stopped. You can Start again.")
 
     def _stop_ollama(self):
         if self.ollama_proc is not None:
@@ -498,7 +497,7 @@ class ClientApp:
         if not text:
             return
         self.input.delete(0, tk.END)
-        self.append_chat("Tú", text)
+        self.append_chat("You", text)
         self.history.append({"role": "user", "content": text})
         self.send_btn.config(state="disabled")
         self.run_bg(self._do_chat, done=self._on_chat_done, error=self._on_chat_error)
@@ -540,7 +539,7 @@ class ClientApp:
 
     def _on_chat_done(self, content):
         self.history.append({"role": "assistant", "content": content})
-        self.append_chat("Modelo", content)
+        self.append_chat("Model", content)
         self.send_btn.config(state="normal")
 
     def _on_chat_error(self, exc):

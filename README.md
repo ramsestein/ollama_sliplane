@@ -1,182 +1,188 @@
-# Ollama Privado Cifrado
+# Pukara
 
-Servidor **Ollama** autocontenido en Docker con un **proxy de cifrado** delante y
-un **cliente de escritorio** que anonimiza entidades sensibles con **BERT** y
-**expresiones regulares** antes de enviar los datos al servidor.
+**Pukara** is a privacy-first, self-hosted gateway for local large language
+models ([Ollama](https://ollama.com)). It runs a Dockerized Ollama server behind
+an application-layer encryption proxy, and ships a desktop client that
+**anonymizes sensitive entities on-device** (BERT + regex) before anything
+leaves the machine.
 
-La comunicación se cifra en la aplicación con **AES-256-GCM** y una clave que rota
-cada 5 minutos (además del HTTPS del despliegue). El servidor **nunca recibe los
-datos reales**: el cliente los sustituye por placeholders y solo el cliente puede
-revertirlos.
+The name *Pukara* (Quechua for "fortress") plays on Ollama's alpaca: a small,
+resilient stronghold around your model.
 
-## Características
+> **Language focus.** Pukara's anonymization is tuned for **Spanish** text, where
+> we found a gap in privacy tooling. It is model-agnostic: point `BERT_MODEL` to a
+> different NER checkpoint to support other languages.
 
-- Servidor Ollama en Docker, listo para desplegar en Sliplane u otro proveedor.
-- Proxy de cifrado AES-GCM con clave rotatoria, Basic Auth y lista blanca de IPs.
-- Cliente de escritorio (GUI) que detecta tu IP y arranca/para el Ollama local.
-- Anonimización local con BERT (`bsc-bio-ehr-es-carmen-anon`) + regex.
-- Endpoint compatible con Ollama (`local_ollama.py`) para VS Code, Codex, Open WebUI, etc.
-- Imagen Docker endurecida: usuario no-root, FS de solo lectura y sin capacidades.
+## Features
 
-## Arquitectura
+- Dockerized Ollama server behind an **AES-256-GCM** encryption proxy (rotating key).
+- On-device **anonymization** with BERT (`bsc-bio-ehr-es-carmen-anon`) + regex.
+- Desktop GUI that auto-detects your IP and starts/stops the local Ollama endpoint.
+- Ollama-compatible endpoint (`local_ollama.py`) for VS Code, Codex, Open WebUI, etc.
+- Hardened image: non-root user, read-only filesystem, dropped capabilities.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Cliente
-      GUI[Cliente GUI] --> AN[Anonimizador BERT + regex]
-      LO[Ollama virtual :11434] --> AN
+    subgraph Client
+      GUI[Desktop GUI] --> AN[Anonymizer BERT + regex]
+      LO[Virtual Ollama :11434] --> AN
     end
-    AN -- "AES-GCM sobre HTTPS" --> PX[Proxy :8000]
-    PX -- "HTTP local" --> OL[Ollama :11434]
+    AN -- "AES-GCM over HTTPS" --> PX[Proxy :8000]
+    PX -- "local HTTP" --> OL[Ollama :11434]
 ```
 
-- El **cliente** detecta entidades (nombres, fechas, teléfonos, direcciones…) y
-  las sustituye por placeholders `[ETIQUETA_n]`; el mapa `placeholder → real`
-  vive solo en el cliente.
-- El **proxy** descifra la petición, la reenvía a Ollama y cifra la respuesta.
-- **Ollama** escucha solo en `127.0.0.1:11434`, nunca expuesto al exterior.
+- The **client** detects entities (names, dates, phones, addresses…) and replaces
+  them with reversible placeholders `[TAG_n]`; the `placeholder → real` map never
+  leaves the client.
+- The **proxy** decrypts requests, forwards them to Ollama and encrypts responses.
+- **Ollama** listens only on `127.0.0.1:11434` inside the container.
 
-## Cifrado
+## Encryption
 
-La clave efectiva se deriva de un **secreto compartido** + la **ventana de tiempo**
-de 5 minutos:
-
-```
-key = HMAC-SHA256(secreto, "ollama-secure:{ventana}")
-ventana = timestamp_unix // 300
-```
-
-Cifrado autenticado con **AES-256-GCM**. Se tolera un desfase de reloj de
-±1 ventana (10 minutos) entre cliente y servidor.
-
-## Estructura del repositorio
+The effective key is derived from a shared secret plus a 5-minute time window:
 
 ```
-├── proxy.py            # Proxy cifrado (servidor)
-├── secure.py           # AES-GCM con clave rotatoria (compartido)
-├── entrypoint.sh       # Arranque del contenedor (Ollama + modelo + proxy)
+key = HMAC-SHA256(secret, "ollama-secure:{window}")
+window = unix_timestamp // 300
+```
+
+Authenticated encryption with **AES-256-GCM**. A clock skew of ±1 window
+(10 minutes) between client and server is tolerated.
+
+## Anonymization
+
+```
+text → detect entities (BERT + regex) → replace with [TAG_n] → encrypt → send
+response → decrypt → restore real values → show
+```
+
+The BERT model is configured via `BERT_MODEL` (a gated Hugging Face repo),
+defaulting to `PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon`.
+
+### Detection quality
+
+The detection engine is the pipeline of
+[carmina3](readme_carmina3.md), a Spanish clinical-text de-identification
+suite. Its calibrated strategy reports the following on the **CARMEN** test set
+(2,000 documents):
+
+| Level | Precision | Recall | F1 |
+|---|---|---|---|
+| Word (PHI vs non-PHI) | 0.930 | 0.919 | **0.924** |
+| Document (macro F1, mean/doc) | — | — | 0.724 |
+
+Document-level leakage (documents with at least one missed PHI among critical
+tags such as `EMAIL`, `FAMILY`, `NAME`, `ID`, `PHONE`, `URL`, `PROFESSIONAL`):
+**2.5%** (49 / 2000). Throughput: 2,000 documents in about 5 minutes on CPU.
+
+See [`readme_carmina3.md`](readme_carmina3.md) for the full evaluation details.
+
+## Repository structure
+
+```
+├── proxy.py            # Encrypted proxy (server)
+├── secure.py           # AES-GCM with rotating key (shared)
+├── entrypoint.sh       # Container bootstrap (Ollama + model + proxy)
 ├── Dockerfile
 ├── docker-compose.yml
-├── client_app.py       # Cliente de escritorio (GUI, Tkinter)
-├── local_ollama.py     # Endpoint Ollama local -> proxy remoto cifrado
-├── client.py           # Cliente CLI de prueba
-├── anonymizer.py       # Anonimización BERT + regex (placeholders reversibles)
-├── lista_blanca.txt    # Términos que no se anonimizan
-├── requirements.txt    # Dependencias del cliente
-├── tests/              # Tests pytest
-└── .github/workflows/  # CI (tests + build de imagen)
+├── client_app.py       # Desktop client (Tkinter GUI)
+├── local_ollama.py     # Local Ollama-compatible endpoint -> remote proxy
+├── client.py           # CLI test client
+├── anonymizer.py       # BERT + regex anonymization (reversible placeholders)
+├── lista_blanca.txt    # Whitelist of terms not to anonymize
+├── requirements.txt    # Client dependencies
+├── tests/              # pytest suite
+└── .github/workflows/  # CI (tests + image build)
 ```
 
-## Requisitos
+## Requirements
 
-- **Servidor**: Docker + Docker Compose.
-- **Cliente**: Python 3.9+ con `cryptography`; para anonimizar, además
-  `torch`, `transformers` y `numpy` (ver `requirements.txt`).
+- **Server**: Docker + Docker Compose.
+- **Client**: Python 3.9+ with `cryptography`; for anonymization also
+  `torch`, `transformers` and `numpy` (see `requirements.txt`).
 
-## Instalación
+## Installation
 
-### Servidor (Docker)
+### Server (Docker)
 
 ```bash
-cp .env.example .env   # edita ENCRYPTION_SECRET, AUTH_*, ALLOWED_IPS, OLLAMA_MODEL
+cp .env.example .env   # set ENCRYPTION_SECRET, AUTH_*, ALLOWED_IPS, OLLAMA_MODEL
 docker compose up --build
 ```
 
-### Cliente
+### Client
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # URL del servidor + mismo secreto compartido
-python client_app.py   # o run_client.bat (Windows) / run_client.sh (Linux)
+cp .env.example .env   # server URL + the same shared secret
+python client_app.py   # or run_client.bat (Windows) / run_client.sh (Linux)
 ```
 
-## Uso
+## Usage
 
-### Cliente de escritorio
+### Desktop client
 
-Al abrir `client_app.py`:
+When `client_app.py` opens:
 
-1. Comprueba que el modelo BERT está en `models/` (si no, intenta descargarlo).
-2. Ejecuta unas comprobaciones mínimas del sistema.
-3. Muestra la configuración precargada de `.env` y detecta tu IP.
-4. Con **Arrancar**: hace ping al servidor (`/health` → 200) y abre el chat.
-5. Levanta `local_ollama.py` para que VS Code / Codex / etc. se conecten.
-6. Con **Parar** o al cerrar la ventana, detiene el Ollama local.
+1. Checks the BERT model in `models/` (downloads it if missing).
+2. Runs minimal system checks.
+3. Shows the configuration pre-filled from `.env` and auto-detects your IP.
+4. **Start**: pings the server (`/health` → 200) and opens the chat.
+5. Starts `local_ollama.py` so VS Code / Codex / etc. can connect.
+6. **Stop** (or closing the window) stops the local Ollama endpoint.
 
-### Endpoint Ollama local (VS Code, Codex, Open WebUI…)
+### Local Ollama endpoint (VS Code, Codex, Open WebUI…)
 
 ```bash
 python local_ollama.py
 ```
 
-Deja el proceso corriendo y apunta tus herramientas a `http://127.0.0.1:11434`.
-Toda petición que pase por ahí se anonimiza antes de cifrarse.
+Point your tools at `http://127.0.0.1:11434`. Every request is anonymized before
+being encrypted and forwarded.
 
-### Cliente CLI
-
-```bash
-python client.py --url https://tu-app.sliplane.app --model llama3.2:3b
-```
-
-## Anonimización
-
-```mermaid
-flowchart LR
-    A[Texto real] --> B[Detectar entidades: BERT + regex]
-    B --> C[Sustituir por [ETIQUETA_n]]
-    C --> D[Cifrar y enviar]
-    D --> E[Respuesta con placeholders]
-    E --> F[Restaurar valores reales]
-    F --> G[Mostrar al usuario]
-```
-
-El modelo BERT usado se configura con la variable `BERT_MODEL` (repo de
-Hugging Face). Por defecto: `PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon`.
-
-## Configuración
-
-Variables de entorno (en `.env` para local, en el panel de Sliplane para prod):
-
-| Variable            | Descripción                                          |
-|---------------------|------------------------------------------------------|
-| `OLLAMA_MODEL`      | Modelo de Ollama a descargar                         |
-| `OLLAMA_KEEP_ALIVE` | Mantener el modelo en memoria (`-1` = siempre)       |
-| `ENCRYPTION_SECRET` | Secreto compartido para el cifrado (obligatorio)     |
-| `AUTH_USER`         | Usuario del proxy (Basic Auth)                       |
-| `AUTH_PASSWORD`     | Contraseña del proxy (Basic Auth)                    |
-| `ALLOWED_IPS`       | IPs permitidas, separadas por comas (admite CIDR)    |
-| `BERT_MODEL`        | Repo de Hugging Face del modelo de anonimización     |
-| `PROXY_PORT`        | Puerto del proxy (defecto `8000`)                    |
-| `LOCAL_PORT`        | Puerto local del Ollama virtual (defecto `11434`)    |
-
-## Desplegar en Sliplane
-
-1. Sube este repositorio a GitHub.
-2. En Sliplane, crea un servicio conectado al repositorio.
-3. Configura:
-   - **Puerto**: `8000`.
-   - **Volumen persistente** en `/home/app/.ollama` (para no redescargar el modelo).
-   - **Variables de entorno**: `OLLAMA_MODEL`, `ENCRYPTION_SECRET`, `AUTH_USER`,
-     `AUTH_PASSWORD`, `ALLOWED_IPS`.
-4. Despliega. Obtendrás una URL pública HTTPS.
-
-Probar el despliegue:
+### CLI client
 
 ```bash
-python client.py --url https://tu-app.sliplane.app --model llama3.2:3b
+python client.py --url https://your-app.sliplane.app --model llama3.2:3b
 ```
 
-## Seguridad
+## Configuration
 
-- HTTPS en el despliegue + **cifrado de aplicación** AES-GCM en ambos sentidos.
-- Ollama **sin exponer** (solo `127.0.0.1:11434` dentro del contenedor).
-- Imagen **endurecida**: usuario no-root, sistema de ficheros de solo lectura,
-  `cap_drop: ALL` y `no-new-privileges`.
-- El secreto vive en `.env` (local, no versionado) y en las variables de
-  entorno/secretos del proveedor. Nunca se hornea en la imagen.
-- El proxy exige **Basic Auth** y **lista blanca de IPs**.
-- La anonimización garantiza que el servidor **no reciba datos personales**:
-  recibe placeholders y no puede revertirlos.
+Environment variables (in `.env` locally, in the provider's panel in production):
+
+| Variable | Description |
+|---|---|
+| `OLLAMA_MODEL` | Ollama model to download |
+| `OLLAMA_KEEP_ALIVE` | Keep the model in memory (`-1` = always) |
+| `ENCRYPTION_SECRET` | Shared secret for encryption (required) |
+| `AUTH_USER` | Proxy username (Basic Auth) |
+| `AUTH_PASSWORD` | Proxy password (Basic Auth) |
+| `ALLOWED_IPS` | Allowed client IPs, comma-separated (CIDR supported) |
+| `BERT_MODEL` | Hugging Face repo of the anonymization model |
+| `PROXY_PORT` | Proxy port (default `8000`) |
+| `LOCAL_PORT` | Local virtual-Ollama port (default `11434`) |
+
+## Deploying (e.g., Sliplane)
+
+1. Push this repository to GitHub.
+2. Create a service connected to the repo.
+3. Configure port `8000`, a persistent volume at `/home/app/.ollama`, and the
+   environment variables above.
+4. Deploy. You will get a public HTTPS URL.
+
+## Security
+
+- HTTPS at the edge plus **application-layer encryption** (AES-GCM) both ways.
+- Ollama **not exposed** (only `127.0.0.1:11434` inside the container).
+- **Hardened** image: non-root user, read-only filesystem, `cap_drop: ALL`,
+  `no-new-privileges`.
+- The secret lives in `.env` (local, untracked) and in the provider's secret
+  store; it is never baked into the image.
+- The proxy enforces **Basic Auth** and an **IP allowlist**.
+- Anonymization ensures the server **never receives personal data**: it only
+  sees placeholders it cannot reverse.
 
 ## Tests
 
@@ -185,13 +191,13 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Los tests cubren `secure.py`, `anonymizer.py`, `proxy.py` y `local_ollama.py`
-sin necesidad de descargar el modelo BERT.
+Tests cover `secure.py`, `anonymizer.py`, `proxy.py` and `local_ollama.py`
+without downloading the BERT model.
 
-## Citar
+## Citation
 
-Si usas este software, cítalo usando la información de [`CITATION.cff`](CITATION.cff).
+If you use Pukara, please cite it using [`CITATION.cff`](CITATION.cff).
 
-## Licencia
+## License
 
-MIT. Ver [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).

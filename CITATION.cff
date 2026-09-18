@@ -1,19 +1,19 @@
 cff-version: 1.2.0
-message: "Si usas este software, por favor cítalo como se indica aquí."
-title: "Ollama Privado Cifrado"
+message: "If you use this software, please cite it as described here."
+title: "Pukara"
 abstract: >-
-  Servidor Ollama autocontenido en Docker con un proxy de cifrado AES-GCM
-  (clave rotatoria) y un cliente de escritorio que anonimiza entidades con
-  BERT y expresiones regulares antes de enviar los datos al servidor.
-authors:
-  - family-names: "Ramsés" # TODO: completar
-    given-names: "" # TODO: completar
+  A privacy-first, self-hosted gateway for local large language models: a
+  Dockerized Ollama server behind an AES-256-GCM encryption proxy and a desktop
+  client that anonymizes sensitive entities on-device (BERT + regex) before
+  sending data to the server.
+authors: ["Marrero Garcia, Ramsés", "Peñafiel, Petter Axel"]
 keywords:
   - ollama
   - encryption
   - anonymization
   - privacy
   - llm
+  - spanish
 license: MIT
 version: 0.1.0
 date-released: 2026-09-18
