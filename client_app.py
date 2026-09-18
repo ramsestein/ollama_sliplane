@@ -175,6 +175,47 @@ def secure_request(secret, base_url, method, path, body, auth=None, timeout=600)
     return json.loads(secure.decrypt(secret, resp_envelope).decode("utf-8"))
 
 
+# ── Paleta de colores (tono marrón) ────────────────────────────────────────
+COLORS = {
+    "bg": "#e9dccb",
+    "fg": "#3a2a1a",
+    "accent": "#8b5a2b",
+    "field_bg": "#fbf5ec",
+    "border": "#c9b59c",
+    "section": "#5d4633",
+    "sub": "#7a6452",
+}
+
+
+class CollapsibleSection(ttk.Frame):
+    """Sección con cabecera clicable que muestra/oculta su contenido."""
+
+    def __init__(self, parent, title, body_fill="x", body_expand=False,
+                 collapsed=False, **kwargs):
+        super().__init__(parent, style="TFrame", **kwargs)
+        self._title = title
+        self._body_fill = body_fill
+        self._body_expand = body_expand
+        self._collapsed = collapsed
+        self._arrow = "▸" if collapsed else "▾"
+        self.header = ttk.Button(self, text=f"{self._arrow} {title}",
+                                 style="Section.TButton", command=self.toggle)
+        self.header.pack(fill="x", anchor="w")
+        self.body = ttk.Frame(self, style="TFrame")
+        if not collapsed:
+            self.body.pack(fill=body_fill, expand=body_expand, pady=(6, 0))
+
+    def toggle(self):
+        self._collapsed = not self._collapsed
+        if self._collapsed:
+            self.body.pack_forget()
+            self._arrow = "▸"
+        else:
+            self.body.pack(fill=self._body_fill, expand=self._body_expand, pady=(6, 0))
+            self._arrow = "▾"
+        self.header.config(text=f"{self._arrow} {self._title}")
+
+
 class ClientApp:
     def __init__(self, root):
         self.root = root
@@ -201,27 +242,30 @@ class ClientApp:
             self.style.theme_use("clam")
         except tk.TclError:
             pass
-        bg = "#f4f5f7"
-        fg = "#1f2430"
-        accent = "#4f6ef7"
+        bg = COLORS["bg"]
+        fg = COLORS["fg"]
+        accent = COLORS["accent"]
         self.root.configure(bg=bg)
         self.style.configure(".", background=bg, foreground=fg, font=("Segoe UI", 10))
         self.style.configure("TFrame", background=bg)
         self.style.configure("TLabel", background=bg, foreground=fg)
         self.style.configure("Header.TLabel", background=bg, foreground=fg,
                              font=("Segoe UI", 17, "bold"))
-        self.style.configure("Sub.TLabel", background=bg, foreground="#6b7280",
+        self.style.configure("Sub.TLabel", background=bg, foreground=COLORS["sub"],
                              font=("Segoe UI", 10))
-        self.style.configure("TLabelframe", background=bg, bordercolor="#d7dae0")
-        self.style.configure("TLabelframe.Label", background=bg, foreground="#374151",
+        self.style.configure("TLabelframe", background=bg, bordercolor=COLORS["border"])
+        self.style.configure("TLabelframe.Label", background=bg, foreground=COLORS["section"],
                              font=("Segoe UI", 10, "bold"))
-        self.style.configure("TEntry", padding=7, fieldbackground="white")
+        self.style.configure("TEntry", padding=7, fieldbackground=COLORS["field_bg"])
         self.style.configure("TButton", padding=(14, 7))
+        self.style.configure("Section.TButton", background=bg, foreground=COLORS["section"],
+                             font=("Segoe UI", 11, "bold"), padding=(2, 4), relief="flat")
+        self.style.map("Section.TButton", background=[("active", bg)])
         self.style.configure("Accent.TButton", background=accent, foreground="white",
                              font=("Segoe UI", 10, "bold"))
         self.style.map("Accent.TButton",
-                       background=[("active", "#3d59d1"), ("disabled", "#b7c1e8")],
-                       foreground=[("disabled", "#f3f4f6")])
+                       background=[("active", "#6f4420"), ("disabled", "#cbb69b")],
+                       foreground=[("disabled", "#f6efe4")])
 
     def build_ui(self):
         self._setup_style()
@@ -236,19 +280,20 @@ class ClientApp:
         status_frame.pack(fill="x", padx=18, pady=(4, 0))
         self.status_text = scrolledtext.ScrolledText(
             status_frame, height=6, state="disabled", font=("Consolas", 9),
-            bg="#ffffff", fg="#1f2430", relief="flat", borderwidth=0)
+            bg=COLORS["field_bg"], fg=COLORS["fg"], relief="flat", borderwidth=0)
         self.status_text.pack(fill="x")
 
-        cfg_frame = ttk.LabelFrame(self.root, text="Configuración (se guarda en .env)", padding=10)
-        cfg_frame.pack(fill="x", padx=18, pady=(10, 0))
+        # Configuración: colapsable, abierta por defecto.
+        self.config_section = CollapsibleSection(self.root, "Configuración (se guarda en .env)")
+        self.config_section.pack(fill="x", padx=18, pady=(10, 0))
         for i, key in enumerate(CONFIG_KEYS):
-            ttk.Label(cfg_frame, text=CONFIG_LABELS[key]).grid(
+            ttk.Label(self.config_section.body, text=CONFIG_LABELS[key]).grid(
                 row=i, column=0, sticky="e", padx=(0, 8), pady=4)
             var = tk.StringVar(value=self.env.get(key, ""))
-            ttk.Entry(cfg_frame, textvariable=var, width=58).grid(
+            ttk.Entry(self.config_section.body, textvariable=var, width=58).grid(
                 row=i, column=1, sticky="we", pady=4)
             self.vars[key] = var
-        cfg_frame.columnconfigure(1, weight=1)
+        self.config_section.body.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(self.root, style="TFrame", padding=(18, 10))
         btns.pack(fill="x")
@@ -258,10 +303,12 @@ class ClientApp:
         self.stop_btn = ttk.Button(btns, text="Parar", command=self.on_stop, state="disabled")
         self.stop_btn.pack(side="left")
 
-        chat_frame = ttk.LabelFrame(self.root, text="Chat", padding=10)
-        chat_frame.pack(fill="both", expand=True, padx=18, pady=(10, 18))
+        # Chat: colapsable, abierto por defecto.
+        self.chat_section = CollapsibleSection(
+            self.root, "Chat", body_fill="both", body_expand=True)
+        self.chat_section.pack(fill="both", expand=True, padx=18, pady=(10, 18))
         # La fila de entrada va anclada abajo para que siempre sea visible.
-        inrow = ttk.Frame(chat_frame, style="TFrame")
+        inrow = ttk.Frame(self.chat_section.body, style="TFrame")
         inrow.pack(side="bottom", fill="x", pady=(8, 0))
         ttk.Label(inrow, text="Mensaje:", style="TLabel").pack(side="left")
         self.input = ttk.Entry(inrow)
@@ -271,8 +318,8 @@ class ClientApp:
                                    command=self.on_send, state="disabled")
         self.send_btn.pack(side="left", padx=(8, 0))
         self.chat_text = scrolledtext.ScrolledText(
-            chat_frame, height=8, state="disabled", font=("Segoe UI", 10),
-            bg="#ffffff", fg="#1f2430", relief="flat", borderwidth=0)
+            self.chat_section.body, height=8, state="disabled", font=("Segoe UI", 10),
+            bg=COLORS["field_bg"], fg=COLORS["fg"], relief="flat", borderwidth=0)
         self.chat_text.pack(side="top", fill="both", expand=True)
 
     # ── Helpers UI ────────────────────────────────────────────────────────
