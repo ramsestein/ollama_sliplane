@@ -6,6 +6,7 @@ services:
       - "8000:8000"                    # encrypted proxy (public face)
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b}
+      BERT_MODEL: ${BERT_MODEL:-PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon}
       OLLAMA_KEEP_ALIVE: "-1"
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?Define ENCRYPTION_SECRET en .env}
       AUTH_USER: ${AUTH_USER:-}
@@ -22,6 +23,9 @@ services:
       - ALL                            # drop kernel capabilities
     security_opt:
       - no-new-privileges:true
+    cpus: "1.0"
+    mem_limit: "4g"
+    pids_limit: 256
     restart: unless-stopped
 
 volumes:

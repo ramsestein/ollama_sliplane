@@ -11,6 +11,7 @@ never sees the real data.
 No dependencies on `carmina_3_suite/`: all the relevant code lives here.
 The only external resource is the BERT model, stored under `models/`.
 """
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -42,6 +43,26 @@ def model_repo():
 
 def model_dirname():
     return model_repo().split("/")[-1]
+
+
+def verify_model_hash(model_path):
+    """Verify the BERT weights file against BERT_MODEL_SHA256 (if set).
+
+    Returns True when no hash is configured or no weights file is found.
+    """
+    expected = _read_env("BERT_MODEL_SHA256").strip().lower()
+    if not expected:
+        return True
+    model_path = Path(model_path)
+    for name in ("model.safetensors", "pytorch_model.bin"):
+        f = model_path / name
+        if f.exists():
+            sha = hashlib.sha256()
+            with open(f, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    sha.update(chunk)
+            return sha.hexdigest() == expected
+    return True  # no weights file to verify
 
 # ── Unified taxonomy ────────────────────────────────────────────────────────
 # BRAT (CARMEN) -> unified taxonomy
@@ -267,6 +288,10 @@ class Anonymizer:
         model_path = self.model_dir / model_dirname()
         if not model_path.exists():
             raise FileNotFoundError(f"Modelo no encontrado: {model_path}")
+        if not verify_model_hash(model_path):
+            raise RuntimeError(
+                "El hash SHA-256 del modelo BERT no coincide con BERT_MODEL_SHA256"
+            )
         self.tokenizer = AutoTokenizer.from_pretrained(str(model_path), local_files_only=True)
         self.model = AutoModelForTokenClassification.from_pretrained(str(model_path), local_files_only=True)
         self.model.to(self.device).eval()

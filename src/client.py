@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test client for the encrypted Ollama proxy."""
 import argparse
-import base64
 import json
 import os
 import sys
@@ -34,13 +33,15 @@ def load_secret(cli_secret):
     sys.exit(1)
 
 
-def secure_request(secret, base_url, method, path, body, auth=None):
+def secure_request(secret, base_url, method, path, body, auth=None, model="", bert_model=""):
     inner = {"method": method, "path": path, "body": body}
     envelope = secure.encrypt(secret, json.dumps(inner).encode("utf-8"))
+    if auth:
+        envelope["auth"] = secure.build_auth_envelope(
+            model, bert_model, auth["user"], auth["password"]
+        )
     data = json.dumps(envelope).encode("utf-8")
     headers = {"Content-Type": "application/json"}
-    if auth:
-        headers["Authorization"] = auth
     req = urllib.request.Request(
         base_url + "/secure/request",
         data=data,
@@ -70,10 +71,11 @@ def main():
 
     user = args.user or _read_env("AUTH_USER")
     password = args.password or _read_env("AUTH_PASSWORD")
+    model = _read_env("OLLAMA_MODEL") or args.model
+    bert_model = _read_env("BERT_MODEL")
     auth = None
     if user and password:
-        token = base64.b64encode(("%s:%s" % (user, password)).encode("utf-8")).decode("ascii")
-        auth = "Basic " + token
+        auth = {"user": user, "password": password}
 
     # 1) health
     try:
@@ -85,11 +87,13 @@ def main():
 
     # 2) chat cifrado
     body = {
-        "model": args.model,
+        "model": model,
         "messages": [{"role": "user", "content": args.prompt}],
         "stream": False,
     }
-    result = secure_request(secret, base, "POST", "/v1/chat/completions", body, auth)
+    result = secure_request(
+        secret, base, "POST", "/v1/chat/completions", body, auth, model, bert_model
+    )
     if result.get("status") != 200:
         print("[FAIL] Server responded %s: %s" % (result.get("status"), result.get("body")))
         sys.exit(1)

@@ -8,7 +8,6 @@ speaks to a local Ollama (VS Code + extensions, Open WebUI, the `ollama` CLI,
 etc.) can use the model hosted on Sliplane as if it were local.
 """
 import argparse
-import base64
 import json
 import os
 import sys
@@ -43,18 +42,19 @@ AUTH_USER = read_env("AUTH_USER")
 AUTH_PASSWORD = read_env("AUTH_PASSWORD")
 LOCAL_PORT = int(read_env("LOCAL_PORT") or "11434")
 DEFAULT_MODEL = read_env("OLLAMA_MODEL") or "gemma3:270m"
+BERT_MODEL = read_env("BERT_MODEL")
 
 if __name__ == "__main__" and not SECRET:
     sys.stderr.write("Missing ENCRYPTION_SECRET in .env\n")
     sys.exit(1)
 
 
-def _auth_header():
+def _auth_envelope():
+    """Encrypted credentials (auth layer of double encryption)."""
     if AUTH_USER and AUTH_PASSWORD:
-        token = base64.b64encode(
-            ("%s:%s" % (AUTH_USER, AUTH_PASSWORD)).encode("utf-8")
-        ).decode("ascii")
-        return "Basic " + token
+        return secure.build_auth_envelope(
+            DEFAULT_MODEL, BERT_MODEL, AUTH_USER, AUTH_PASSWORD
+        )
     return None
 
 
@@ -62,11 +62,11 @@ def forward(method, path, body=None):
     """Send an encrypted request to the remote proxy; returns (status, body)."""
     inner = {"method": method, "path": path, "body": body}
     envelope = secure.encrypt(SECRET, json.dumps(inner).encode("utf-8"))
+    auth = _auth_envelope()
+    if auth is not None:
+        envelope["auth"] = auth
     data = json.dumps(envelope).encode("utf-8")
     headers = {"Content-Type": "application/json"}
-    auth = _auth_header()
-    if auth:
-        headers["Authorization"] = auth
     req = urllib.request.Request(
         REMOTE_URL + "/secure/request", data=data, headers=headers, method="POST"
     )

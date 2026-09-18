@@ -35,7 +35,7 @@ Tests cover:
 
 - `secure.py` — encryption/decryption, key rotation and window tolerance.
 - `anonymizer.py` — label mapping, regex detection and reversible placeholders.
-- `proxy.py` — Basic Auth and IP allowlist.
+- `proxy.py` — encrypted credentials (double encryption) and IP allowlist.
 - `local_ollama.py` — request/response anonymization.
 
 ## Running the server locally

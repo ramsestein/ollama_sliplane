@@ -18,6 +18,11 @@ jobs:
         run: pip install cryptography pytest
       - name: Ejecutar tests
         run: python -m pytest -q
+      - name: Auditoría de dependencias (pip-audit)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
 
   build:
     runs-on: ubuntu-latest

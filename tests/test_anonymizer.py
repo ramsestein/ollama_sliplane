@@ -1,4 +1,6 @@
 """Tests de anonymizer.py (mapeos, regex y placeholders, sin cargar BERT)."""
+import hashlib
+
 from src import anonymizer
 
 
@@ -60,3 +62,13 @@ def test_deanonymize_longest_first():
     anon.ph_to_text = {"[NOMBRE_1]": "Ana", "[NOMBRE_10]": "Luis"}
     out = anon.deanonymize("[NOMBRE_10] y [NOMBRE_1]")
     assert out == "Luis y Ana"
+
+
+def test_verify_model_hash(monkeypatch, tmp_path):
+    weights = tmp_path / "pytorch_model.bin"
+    weights.write_bytes(b"abc")
+    expected = hashlib.sha256(b"abc").hexdigest()
+    monkeypatch.setenv("BERT_MODEL_SHA256", expected)
+    assert anonymizer.verify_model_hash(tmp_path) is True
+    monkeypatch.setenv("BERT_MODEL_SHA256", "0" * 64)
+    assert anonymizer.verify_model_hash(tmp_path) is False

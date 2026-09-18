@@ -11,7 +11,6 @@ What it does:
 
 Run:  python client_app.py   (or run_client.bat / run_client.sh)
 """
-import base64
 import json
 import socket
 import subprocess
@@ -123,15 +122,27 @@ def ensure_model(models_dir=None):
     repo = model_repo()
     d = Path(models_dir) if models_dir else ROOT / "models"
     model_dir = d / model_dirname(repo)
-    if (model_dir / "pytorch_model.bin").exists() or (model_dir / "model.safetensors").exists():
-        return True, "present"
+    weights = [model_dir / "pytorch_model.bin", model_dir / "model.safetensors"]
+    present = any(w.exists() for w in weights)
+    status = "present"
+    if not present:
+        try:
+            from huggingface_hub import snapshot_download  # noqa: E402
+            snapshot_download(repo_id=repo, local_dir=str(model_dir))
+            status = "downloaded"
+        except Exception as exc:
+            return False, f"not downloadable ({exc.__class__.__name__})"
+        present = any(w.exists() for w in weights)
+    if not present:
+        return False, "download failed"
+    # Verify the SHA-256 of the weights if configured.
     try:
-        from huggingface_hub import snapshot_download  # noqa: E402
-        snapshot_download(repo_id=repo, local_dir=str(model_dir))
-    except Exception as exc:
-        return False, f"not downloadable ({exc.__class__.__name__})"
-    ok = (model_dir / "pytorch_model.bin").exists() or (model_dir / "model.safetensors").exists()
-    return ok, ("downloaded" if ok else "download failed")
+        from .anonymizer import verify_model_hash
+    except Exception:
+        verify_model_hash = None
+    if verify_model_hash is not None and not verify_model_hash(model_dir):
+        return False, "hash mismatch (BERT_MODEL_SHA256)"
+    return True, status
 
 
 def run_checks():
@@ -158,14 +169,16 @@ def ping_server(url):
     return resp.status == 200 and data.get("ok") is True
 
 
-def secure_request(secret, base_url, method, path, body, auth=None, timeout=600):
+def secure_request(secret, base_url, method, path, body, auth=None, model="", bert_model="", timeout=600):
     """Encrypted request to the remote proxy. Returns {status, body}."""
     inner = {"method": method, "path": path, "body": body}
     envelope = secure.encrypt(secret, json.dumps(inner).encode("utf-8"))
+    if auth and auth.get("user") and auth.get("password"):
+        envelope["auth"] = secure.build_auth_envelope(
+            model, bert_model, auth["user"], auth["password"]
+        )
     data = json.dumps(envelope).encode("utf-8")
     headers = {"Content-Type": "application/json"}
-    if auth:
-        headers["Authorization"] = auth
     req = urllib.request.Request(
         base_url + "/secure/request", data=data, headers=headers, method="POST"
     )
@@ -508,11 +521,11 @@ class ClientApp:
         model = self.vars["OLLAMA_MODEL"].get().strip()
         user = self.vars["AUTH_USER"].get().strip()
         password = self.vars["AUTH_PASSWORD"].get().strip()
+        bert_model = model_repo()
 
         auth = None
         if user and password:
-            token = base64.b64encode(("%s:%s" % (user, password)).encode("utf-8")).decode("ascii")
-            auth = "Basic " + token
+            auth = {"user": user, "password": password}
 
         messages = [dict(m) for m in self.history]
         if self.anon is not None:
@@ -521,7 +534,9 @@ class ClientApp:
                     m["content"] = self.anon.anonymize(m["content"])
 
         body = {"model": model, "messages": messages, "stream": False}
-        result = secure_request(secret, url, "POST", "/v1/chat/completions", body, auth)
+        result = secure_request(
+            secret, url, "POST", "/v1/chat/completions", body, auth, model, bert_model
+        )
 
         status = result.get("status")
         resp_body = result.get("body")

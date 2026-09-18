@@ -55,14 +55,21 @@ flowchart LR
       GUI[Desktop GUI] --> AN[Anonymizer BERT + regex]
       LO[Virtual Ollama :11434] --> AN
     end
-    AN -- "AES-GCM over HTTPS" --> PX[Proxy :8000]
+    AN -- "double AES-GCM over HTTPS" --> PX[Proxy :8000]
     PX -- "local HTTP" --> OL[Ollama :11434]
 ```
 
-The encryption key is derived from a shared secret plus a 5-minute time window:
+Encryption is **double-layered** (two independent AES-256-GCM layers):
+
+1. **Message**: the request/response body is encrypted with a key derived from
+   the shared secret plus a 5-minute time window:
+   `key = HMAC-SHA256(secret, "ollama-secure:{window}")`.
+2. **Credentials**: the Basic Auth credentials are encrypted separately with a
+   second key derived from the sum of the model name, the BERT model name and
+   the auth password, so they never travel in the clear:
+   `key = HMAC-SHA256(SHA-256(model | bert_model | auth_password), "pukara-auth:{window}")`.
 
 ```
-key = HMAC-SHA256(secret, "ollama-secure:{window}")
 window = unix_timestamp // 300
 ```
 
@@ -71,7 +78,7 @@ See [`docs/installation.md`](docs/installation.md) and
 
 ## Functionality
 
-- Dockerized Ollama server behind an encrypted proxy (Basic Auth + IP allowlist).
+- Dockerized Ollama server behind an encrypted proxy (double encryption, IP allowlist, rate limiting, anti-replay).
 - On-device anonymization (BERT `bsc-bio-ehr-es-carmen-anon` + regex).
 - Desktop GUI with auto-detected IP and start/stop of the local endpoint.
 - Ollama/OpenAI-compatible local endpoint for external tools.
@@ -85,6 +92,11 @@ Installation (server and client) is documented in
 
 - Desktop client and CLI: [`docs/client.md`](docs/client.md).
 - VS Code, Codex CLI and Claude Code: [`docs/integrations.md`](docs/integrations.md).
+
+## Security
+
+See [`docs/SECURITY.md`](docs/SECURITY.md) for the security model, hardening and how to
+report vulnerabilities.
 
 ## Evaluation
 
