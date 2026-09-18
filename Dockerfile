@@ -1,34 +1,34 @@
-# Imagen base de Ollama. Fija la versión para reproducibilidad
-# (sobrescríbela con: --build-arg OLLAMA_BASE=ollama/ollama:otra).
+# Ollama base image. Pin the version for reproducibility
+# (override at build time: --build-arg OLLAMA_BASE=ollama/ollama:other).
 ARG OLLAMA_BASE=ollama/ollama:0.34.2
 FROM ${OLLAMA_BASE}
 
-# curl (healthchecks) + python3 para el proxy cifrado.
-# Se instala como root en la fase de build; después se baja a un usuario sin privilegios.
+# curl (health checks) + python3 for the encrypted proxy.
+# Installed as root during build; we drop to an unprivileged user afterwards.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl python3 python3-cryptography \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Criptografía compartida y proxy cifrado
-COPY secure.py proxy.py /app/
+# Shared cryptography and encrypted proxy
+COPY src/ /app/src/
 
-# Script de arranque: Ollama + descarga del modelo + proxy
+# Bootstrap script: Ollama + model download + proxy
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Ollama solo escucha dentro del contenedor; el proxy es la cara pública
+# Ollama listens only inside the container; the proxy is the public face
 ENV OLLAMA_HOST=127.0.0.1:11434
 ENV OLLAMA_URL=http://127.0.0.1:11434
 ENV PROXY_PORT=8000
 
-# Modelo y secreto de cifrado (se sobrescriben por variables de entorno;
-# el secreto NUNCA se hornea en la imagen).
+# Model and encryption secret (overridden via environment variables;
+# the secret is NEVER baked into the image).
 ENV OLLAMA_MODEL=gemma2:2b
 ENV ENCRYPTION_SECRET=""
 
-# ── Hardening: usuario sin privilegios ─────────────────────────────────────
+# ── Hardening: unprivileged user ───────────────────────────────────────────
 RUN (id app >/dev/null 2>&1 || useradd -m -u 10001 app) \
     && mkdir -p /home/app/.ollama \
     && chown -R app:app /home/app /app
@@ -38,7 +38,7 @@ USER app
 
 EXPOSE 8000
 
-# Volumen para persistir los modelos descargados entre despliegues
+# Volume to persist downloaded models across deployments
 VOLUME ["/home/app/.ollama"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

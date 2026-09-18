@@ -1,10 +1,10 @@
 """Tests de los helpers de anonimización de local_ollama.py."""
 import os
 
-# Evita que local_ollama.py salga por falta de ENCRYPTION_SECRET al importar.
+# Prevent local_ollama.py from exiting due to missing ENCRYPTION_SECRET on import.
 os.environ.setdefault("ENCRYPTION_SECRET", "test-secret")
 
-import local_ollama as lo  # noqa: E402
+from src import local_ollama as lo  # noqa: E402
 
 
 class StubAnon:

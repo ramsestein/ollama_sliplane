@@ -7,7 +7,7 @@ import os
 import sys
 import urllib.request
 
-import secure
+from . import secure
 
 
 def _read_env(key):

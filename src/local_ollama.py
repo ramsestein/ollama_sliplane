@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import secure
+from . import secure
 
 DEFAULT_REMOTE = "https://ollama-sliplane.sliplane.app"
 STREAMING_PATHS = {"/api/chat", "/api/generate", "/v1/chat/completions", "/v1/completions"}
@@ -100,7 +100,7 @@ def _ensure_chat_capability(obj):
 
 # ── Anonymization layer (optional: local BERT + regex) ───────────────────
 try:
-    from anonymizer import get_anonymizer
+    from .anonymizer import get_anonymizer
 except Exception:  # noqa: BLE001
     get_anonymizer = None
 

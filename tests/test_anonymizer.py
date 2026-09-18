@@ -1,5 +1,5 @@
 """Tests de anonymizer.py (mapeos, regex y placeholders, sin cargar BERT)."""
-import anonymizer
+from src import anonymizer
 
 
 def test_map_bert_label():

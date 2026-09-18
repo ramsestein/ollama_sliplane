@@ -4,11 +4,11 @@ cd /d "%~dp0"
 
 where python >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] No se encontro Python en el PATH.
-    echo Instala Python 3.9+ con torch, transformers y cryptography.
+    echo [ERROR] Python not found in PATH.
+    echo Install Python 3.9+ with torch, transformers and cryptography.
     pause
     exit /b 1
 )
 
-python client_app.py
+python -m src.client_app
 pause

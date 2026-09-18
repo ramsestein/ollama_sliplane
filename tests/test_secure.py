@@ -1,7 +1,7 @@
 """Tests de secure.py (cifrado AES-GCM con clave rotatoria)."""
 import base64
 
-import secure
+from src import secure
 
 
 def test_roundtrip():

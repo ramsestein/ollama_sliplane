@@ -23,9 +23,9 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
-import secure
+from . import PROJECT_ROOT, secure
 
-ROOT = Path(__file__).resolve().parent
+ROOT = PROJECT_ROOT
 DEFAULT_MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
 
 CONFIG_KEYS = [
@@ -436,7 +436,7 @@ class ClientApp:
         try:
             self.log_file = open(ROOT / "client_ollama.log", "ab")
             self.ollama_proc = subprocess.Popen(
-                [sys.executable, str(ROOT / "local_ollama.py")],
+                [sys.executable, "-m", "src.local_ollama"],
                 cwd=str(ROOT), stdout=self.log_file, stderr=self.log_file,
             )
             self.status(f"✓ Local Ollama started on port {self.vars['LOCAL_PORT'].get()}")
@@ -549,7 +549,7 @@ class ClientApp:
 
 def _load_anonymizer():
     try:
-        from anonymizer import get_anonymizer
+        from .anonymizer import get_anonymizer
         return get_anonymizer(), None
     except Exception as exc:
         return None, str(exc)

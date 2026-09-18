@@ -54,7 +54,7 @@ else
 fi
 
 echo ">> Model ready. Starting encrypted proxy on port $PROXY_PORT..."
-python3 /app/proxy.py &
+python3 -m src.proxy &
 PROXY_PID=$!
 
 trap 'kill "$PROXY_PID" "$SERVER_PID" 2>/dev/null || true' TERM INT

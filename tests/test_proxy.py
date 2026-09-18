@@ -2,7 +2,7 @@
 import base64
 import ipaddress
 
-import proxy
+from src import proxy
 
 
 def test_parse_allowed_ips():

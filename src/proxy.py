@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import secure
+from . import secure
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 PORT = int(os.environ.get("PROXY_PORT", "8000"))

@@ -15,7 +15,9 @@ import os
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+from . import PROJECT_ROOT
+
+ROOT = PROJECT_ROOT
 DEFAULT_MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
 DEFAULT_MODEL_DIR = Path(os.environ.get("CARMINA_MODEL_DIR", ROOT / "models"))
 
