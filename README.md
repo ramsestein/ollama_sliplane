@@ -76,6 +76,32 @@ O directamente con `curl` al endpoint local sin cifrar (solo desarrollo):
 curl http://localhost:11434/api/tags
 ```
 
+## Usar como Ollama local (VS Code, Open WebUI, etc.)
+
+Puedes ejecutar un "Ollama virtual" en tu máquina que reenvía al proxy remoto
+cifrado. Así cualquier herramienta que hable con Ollama local
+(`http://127.0.0.1:11434`) usa el modelo alojado en Sliplane como si fuera local.
+
+```bash
+pip install cryptography
+python local_ollama.py
+```
+
+Deja el proceso corriendo y apunta tus herramientas a `http://127.0.0.1:11434`:
+
+- **VS Code** con extensiones compatibles con Ollama (p. ej. Continue, Ollama
+  Autocoder): configura el endpoint Ollama a `http://127.0.0.1:11434`.
+- **`ollama` CLI** (si lo tienes instalado):
+  `OLLAMA_HOST=http://127.0.0.1:11434 ollama list` y
+  `OLLAMA_HOST=http://127.0.0.1:11434 ollama run gemma3:270m`.
+- **Open WebUI** u otras apps: apunta el endpoint Ollama a `http://127.0.0.1:11434`.
+
+Opciones del cliente local:
+
+```bash
+python local_ollama.py --remote https://ollama-sliplane.sliplane.app --port 11434
+```
+
 ## Modelo
 
 Por defecto se descarga `gemma2:2b` (~1.6 GB). Nota: ni `gemma4:2b` ni
