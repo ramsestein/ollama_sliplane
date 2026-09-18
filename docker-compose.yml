@@ -1,0 +1,14 @@
+services:
+  ollama:
+    build: .
+    container_name: llm-propio-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_MODEL: gemma3:2b
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama-data:

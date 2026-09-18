@@ -1,0 +1,12 @@
+# Entornos y secretos
+.env
+.env.*
+
+# Python (por si añades scripts luego)
+__pycache__/
+*.pyc
+.venv/
+
+# Sistema
+.DS_Store
+Thumbs.db
