@@ -1,8 +1,7 @@
 # Evaluation
 
-Pukara's anonymization engine is the detection pipeline of
-[carmina3](readme_carmina3.md), a Spanish clinical-text de-identification
-suite that combines:
+Pukara's anonymization engine is the detection pipeline of carmina3, a Spanish
+clinical-text de-identification suite that combines:
 
 - **BERT** (`bsc-bio-ehr-es-carmen-anon`) — multiclass token classification.
 - **Regex rules** — dates, times, phones, names, addresses, etc.
@@ -31,8 +30,5 @@ Its calibrated strategy was evaluated on the **CARMEN** test set
 
 ## Notes
 
-- Pukara uses only the BERT model + regex rules; it does not use the logistic
-  regression booster (exp7) or the dictionary substitution of carmina3.
 - The evaluation is binary at word level (PHI vs non-PHI); the concrete label
   is assigned by BERT.
-- See [readme_carmina3.md](readme_carmina3.md) for the full carmina3 report.
