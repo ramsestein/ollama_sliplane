@@ -1,0 +1,40 @@
+{
+  "script": "eval/cost.py",
+  "generated": "2026-09-19T05:35:21.727911Z",
+  "code_revision": "e10da368543271f69292d83d139f8f761bedcd7d",
+  "hardware": {
+    "cpu": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+    "platform": "Windows-10-10.0.26200-SP0"
+  },
+  "anonymization_latency_ms": {
+    "documents": 100,
+    "p50": 5.1028,
+    "p95": 8.9593
+  },
+  "encryption_ms": [
+    {
+      "size_bytes": 64,
+      "p50_ms": 0.0221,
+      "p95_ms": 0.0254
+    },
+    {
+      "size_bytes": 1024,
+      "p50_ms": 0.0291,
+      "p95_ms": 0.0316
+    },
+    {
+      "size_bytes": 4096,
+      "p50_ms": 0.0487,
+      "p95_ms": 0.0519
+    },
+    {
+      "size_bytes": 16384,
+      "p50_ms": 0.1254,
+      "p95_ms": 0.1409
+    }
+  ],
+  "client_peak_memory_bytes": 482140,
+  "notes": [
+    "Regex-only anonymization on CPU; BERT latency is TODO until the model is available locally."
+  ]
+}
