@@ -50,3 +50,21 @@ def test_v1_choices_deanonymized():
     resp = {"choices": [{"message": {"content": "X1"}}]}
     lo._deanonymize_body(anon, resp)
     assert resp["choices"][0]["message"]["content"] == "hola"
+
+
+def test_is_management_path():
+    assert lo._is_management_path("/api/pull") is True
+    assert lo._is_management_path("/api/delete") is True
+    assert lo._is_management_path("/api/chat") is False
+
+
+def test_foreign_origin():
+    def make(origin):
+        handler = lo.Handler.__new__(lo.Handler)
+        handler.headers = {"Origin": origin} if origin else {}
+        return handler
+
+    assert make("https://evil.com")._foreign_origin() is True
+    assert make("http://localhost:3000")._foreign_origin() is False
+    assert make("http://127.0.0.1:5500")._foreign_origin() is False
+    assert make(None)._foreign_origin() is False

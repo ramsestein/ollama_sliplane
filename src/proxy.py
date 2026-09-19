@@ -30,6 +30,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -44,10 +45,76 @@ ALLOWED_IPS = os.environ.get("ALLOWED_IPS", "")
 TRUSTED_PROXIES = os.environ.get("TRUSTED_PROXIES", "")
 RATE_LIMIT = int(os.environ.get("RATE_LIMIT", "0") or 0)  # req/min per IP; 0 = off
 AUDIT_LOG = os.environ.get("AUDIT_LOG", "")
+ALLOW_MANAGEMENT = os.environ.get("ALLOW_MANAGEMENT", "0") == "1"
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(10 * 1024 * 1024)) or 0)
+UPSTREAM_TIMEOUT = float(os.environ.get("UPSTREAM_TIMEOUT", "600") or 600)
+MAX_RATE_IPS = int(os.environ.get("MAX_RATE_IPS", "100000") or 100000)
+STRICT = os.environ.get("STRICT", "0") == "1"
 
 # The generic, oracle-free error returned for tag/freshness/replay/credential
 # failures. The real cause is only written to the audit log.
 _GENERIC_DENIAL = {"error": "unauthorized"}
+
+# Explicit (method, path) allowlist: inference and listing only. Model
+# management routes are denied unless ALLOW_MANAGEMENT=1.
+_ALLOWED_METHOD_PATHS = {
+    ("GET", "/api/tags"),
+    ("GET", "/api/version"),
+    ("POST", "/api/show"),
+    ("POST", "/api/chat"),
+    ("POST", "/api/generate"),
+    ("POST", "/api/embed"),
+    ("POST", "/api/embeddings"),
+    ("GET", "/v1/models"),
+    ("POST", "/v1/chat/completions"),
+    ("POST", "/v1/completions"),
+    ("POST", "/v1/embeddings"),
+}
+
+_MANAGEMENT_PATHS = {
+    "/api/pull", "/api/delete", "/api/create", "/api/copy", "/api/push",
+    "/api/blobs",
+}
+
+_OLLAMA = urllib.parse.urlsplit(OLLAMA_URL)
+
+
+def _validate_path(path):
+    """Reject paths that cannot be a safe upstream path."""
+    if not isinstance(path, str):
+        return False
+    if not path.startswith("/"):
+        return False
+    if "//" in path or "@" in path or "\\" in path:
+        return False
+    if "?" in path or "#" in path:
+        return False
+    if any(ord(ch) < 32 for ch in path):
+        return False
+    return True
+
+
+def _route_allowed(method, path):
+    if (method, path) in _ALLOWED_METHOD_PATHS:
+        return True
+    if ALLOW_MANAGEMENT and path in _MANAGEMENT_PATHS:
+        return True
+    return False
+
+
+def _upstream_url(path):
+    """Build the upstream URL from OLLAMA_URL and a validated path.
+
+    The path is always inserted as a path component (never a netloc), so the
+    result cannot resolve to a different host.
+    """
+    if not _validate_path(path):
+        raise ValueError("invalid upstream path")
+    target = urllib.parse.urlunsplit((_OLLAMA.scheme, _OLLAMA.netloc, path, "", ""))
+    check = urllib.parse.urlsplit(target)
+    if (check.scheme, check.netloc) != (_OLLAMA.scheme, _OLLAMA.netloc):
+        raise ValueError("upstream URL escaped OLLAMA_URL")
+    return target
 
 
 def _parse_allowed_ips(raw):
@@ -131,7 +198,12 @@ def _rate_limited(ip):
         return False
     now = time.time()
     with _rate_lock:
-        stamps = _rate_hits.setdefault(ip, [])
+        stamps = _rate_hits.get(ip)
+        if stamps is None:
+            if len(_rate_hits) >= MAX_RATE_IPS:
+                return True  # fail-closed: cannot track more distinct IPs
+            stamps = []
+            _rate_hits[ip] = stamps
         stamps[:] = [t for t in stamps if now - t < _RATE_WINDOW]
         if len(stamps) >= RATE_LIMIT:
             return True
@@ -208,7 +280,19 @@ class Handler(BaseHTTPRequestHandler):
 
         length = 0
         try:
-            length = int(self.headers.get("Content-Length", "0"))
+            length = int(self.headers.get("Content-Length", "0") or 0)
+        except Exception:  # noqa: BLE001
+            _audit(client_ip, "POST", req_path, 400, reason="bad_content_length")
+            self._json(400, {"error": "bad request"})
+            return
+
+        if length < 0 or length > MAX_BODY_BYTES:
+            _audit(client_ip, "POST", req_path, 413, reason="body_too_large",
+                   size=length)
+            self._json(413, {"error": "payload too large"})
+            return
+
+        try:
             raw_body = self.rfile.read(length)
             envelope = json.loads(raw_body)
         except Exception:  # noqa: BLE001
@@ -260,6 +344,19 @@ class Handler(BaseHTTPRequestHandler):
 
         method = str(inner.get("method", "GET")).upper()
         path = str(inner.get("path", "/"))
+
+        if not _validate_path(path):
+            _audit(client_ip, "POST", req_path, 400, reason="invalid_path",
+                   req_id=secure.b64e(req_id))
+            self._json(400, {"error": "bad request"})
+            return
+
+        if not _route_allowed(method, path):
+            _audit(client_ip, "POST", req_path, 403, reason="route_denied",
+                   req_id=secure.b64e(req_id))
+            self._json(403, {"error": "forbidden"})
+            return
+
         body = inner.get("body")
 
         data = None
@@ -268,11 +365,19 @@ class Handler(BaseHTTPRequestHandler):
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
 
+        try:
+            upstream_url = _upstream_url(path)
+        except ValueError:
+            _audit(client_ip, method, path, 400, reason="invalid_path",
+                   req_id=secure.b64e(req_id))
+            self._json(400, {"error": "bad request"})
+            return
+
         req = urllib.request.Request(
-            OLLAMA_URL + path, data=data, headers=headers, method=method
+            upstream_url, data=data, headers=headers, method=method
         )
         try:
-            with urllib.request.urlopen(req, timeout=600) as resp:
+            with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT) as resp:
                 status = resp.status
                 raw = resp.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as exc:
@@ -302,6 +407,18 @@ def main():
     except secure.InvalidSecretError as exc:
         sys.stderr.write("ERROR: ENCRYPTION_SECRET inválida: %s\n" % exc)
         sys.exit(1)
+
+    warnings = []
+    if not ALLOWED_IPS:
+        warnings.append("ALLOWED_IPS no está definida: se aceptan todas las IPs")
+    if not AUTH_USER and not AUTH_PASSWORD:
+        warnings.append("AUTH_USER/AUTH_PASSWORD no definidas: credenciales desactivadas")
+    for msg in warnings:
+        sys.stderr.write("[proxy] ADVERTENCIA: %s\n" % msg)
+    if STRICT and warnings:
+        sys.stderr.write("[proxy] STRICT=1: configuración insegura, no se arranca\n")
+        sys.exit(1)
+
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     sys.stderr.write("Proxy seguro escuchando en 0.0.0.0:%d\n" % PORT)
     server.serve_forever()

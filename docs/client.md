@@ -45,3 +45,13 @@ python -m src.local_ollama
 It listens on `http://127.0.0.1:11434` and forwards (anonymized + encrypted) to
 the remote proxy, so any Ollama-compatible tool can use the remote model as if
 it were local.
+
+## Streaming (limitation)
+
+The local endpoint forces `stream=false` upstream and emits a single chunk (SSE
+for `/v1/*` endpoints, NDJSON otherwise). True streaming is deliberately not
+implemented yet: an anonymized placeholder can be split across streamed chunks,
+and deanonymizing partial chunks would leak or corrupt tokens. Future design:
+buffer chunks until the streamed JSON array closes (`]`) before deanonymizing,
+then re-emit the restored stream chunk by chunk.
+

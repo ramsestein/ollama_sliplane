@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -20,6 +21,16 @@ from . import secure
 
 DEFAULT_REMOTE = "https://ollama-sliplane.sliplane.app"
 STREAMING_PATHS = {"/api/chat", "/api/generate", "/v1/chat/completions", "/v1/completions"}
+
+# Model-management routes that must never be forwarded to the remote proxy.
+_MANAGEMENT_PATHS = {
+    "/api/pull", "/api/delete", "/api/create", "/api/copy", "/api/push",
+    "/api/blobs",
+}
+
+
+def _is_management_path(path):
+    return path in _MANAGEMENT_PATHS
 
 
 def read_env(key):
@@ -145,6 +156,17 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[local] %s\n" % (fmt % args))
 
+    def _foreign_origin(self):
+        """True if the request carries a non-local Origin (browser CSRF)."""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return False
+        try:
+            host = urllib.parse.urlsplit(origin).hostname
+        except ValueError:
+            return True
+        return host not in ("127.0.0.1", "localhost", "::1")
+
     def _send(self, code, data, content_type="application/json"):
         if isinstance(data, (dict, list)):
             data = json.dumps(data).encode("utf-8")
@@ -155,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.send_response(code)
             self.send_header("Content-Type", content_type)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin") or "*")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Content-Length", str(len(data)))
@@ -171,13 +193,20 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(length) if length > 0 else b""
 
     def do_OPTIONS(self):
+        if self._foreign_origin():
+            self.send_response(403)
+            self.end_headers()
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin") or "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
 
     def do_GET(self):
+        if self._foreign_origin():
+            self._send(403, {"error": "forbidden"})
+            return
         if self.path == "/":
             self._send(200, "Ollama is running", "text/plain")
             return
@@ -206,10 +235,16 @@ class Handler(BaseHTTPRequestHandler):
                     )
             self._send(200, {"object": "list", "data": models})
             return
+        if _is_management_path(self.path):
+            self._send(403, {"error": "forbidden"})
+            return
         status, body = forward("GET", self.path)
         self._send(status, body)
 
     def do_POST(self):
+        if self._foreign_origin():
+            self._send(403, {"error": "forbidden"})
+            return
         raw = self._read_body()
         try:
             req_body = json.loads(raw) if raw else {}
@@ -220,6 +255,10 @@ class Handler(BaseHTTPRequestHandler):
             status, body = forward("POST", "/api/show", req_body)
             _ensure_chat_capability(body)
             self._send(status, body)
+            return
+
+        if _is_management_path(self.path):
+            self._send(403, {"error": "forbidden"})
             return
 
         want_stream = False

@@ -64,6 +64,17 @@ def test_deanonymize_longest_first():
     assert out == "Luis y Ana"
 
 
+def test_reset_clears_maps():
+    anon = anonymizer.Anonymizer.__new__(anonymizer.Anonymizer)
+    anon.text_to_ph = {"x": "[NOMBRE_1]"}
+    anon.ph_to_text = {"[NOMBRE_1]": "x"}
+    anon.counters = {"NOMBRE": 5}
+    anon.reset()
+    assert anon.text_to_ph == {}
+    assert anon.ph_to_text == {}
+    assert anon.counters == {}
+
+
 def test_verify_model_hash(monkeypatch, tmp_path):
     weights = tmp_path / "pytorch_model.bin"
     weights.write_bytes(b"abc")
