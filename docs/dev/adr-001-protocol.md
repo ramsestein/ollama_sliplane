@@ -54,10 +54,12 @@ Replace v1 with a pre-shared-key (PSK) protocol, **v2**, built only on
 - **Response:** encrypted with the `s2c` key; AAD carries the request's
   `req_id`. The client verifies the `req_id` matches and applies the same
   freshness check.
-- **Credentials:** the auth layer is removed entirely. `user`/`password` travel
-  inside the encrypted payload and are compared with `hmac.compare_digest`.
-  Possession of the PSK already authenticates; credentials serve audit and
-  tenant segregation, not a second factor.
+- **Credentials:** the auth layer is removed entirely. The client's deployment
+  configuration — `user`, `password`, `model` and `bert_model` — travels inside
+  the encrypted payload and is compared with `hmac.compare_digest`. Possession
+  of the PSK already authenticates; this gate only enforces that the whole
+  deployment configuration matches (the values are never used as key material,
+  so there is no offline dictionary oracle).
 - **Errors:** one generic response for tag/freshness/replay/credential failures;
   the real cause goes only to the audit log (no oracle).
 

@@ -41,6 +41,8 @@ PORT = int(os.environ.get("PROXY_PORT", "8000"))
 SECRET = os.environ.get("ENCRYPTION_SECRET", "")
 AUTH_USER = os.environ.get("AUTH_USER", "")
 AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "")
+BERT_MODEL = os.environ.get("BERT_MODEL", "")
 ALLOWED_IPS = os.environ.get("ALLOWED_IPS", "")
 TRUSTED_PROXIES = os.environ.get("TRUSTED_PROXIES", "")
 RATE_LIMIT = int(os.environ.get("RATE_LIMIT", "0") or 0)  # req/min per IP; 0 = off
@@ -166,23 +168,30 @@ def _ip_allowed(ip):
     return any(addr in net for net in _ALLOWED_NETS)
 
 
-def _auth_ok(inner):
-    """Validate plaintext credentials inside the decrypted payload.
+def _matches(value, expected):
+    """Constant-time equality; server fields left empty are not checked."""
+    if not expected:
+        return True
+    return hmac.compare_digest(str(value or ""), expected)
 
-    Possession of the PSK already authenticates; these credentials exist for
-    audit and tenant segregation, not as a second factor. Compared in constant
-    time.
+
+def _config_ok(inner):
+    """Verify the client's deployment configuration matches the server's.
+
+    Credentials, the Ollama model and the BERT model must all match, on top of
+    the PSK. Comparisons are constant-time and the values are never used as
+    key material, so there is no offline dictionary oracle.
     """
-    if not AUTH_USER and not AUTH_PASSWORD:
-        return True  # no credentials configured => no restriction
     if not isinstance(inner, dict):
         return False
-    creds = inner.get("credentials")
-    if not isinstance(creds, dict):
+    config = inner.get("config")
+    if not isinstance(config, dict):
         return False
     return (
-        hmac.compare_digest(str(creds.get("user", "")), AUTH_USER)
-        and hmac.compare_digest(str(creds.get("password", "")), AUTH_PASSWORD)
+        _matches(config.get("user"), AUTH_USER)
+        and _matches(config.get("password"), AUTH_PASSWORD)
+        and _matches(config.get("model"), OLLAMA_MODEL)
+        and _matches(config.get("bert_model"), BERT_MODEL)
     )
 
 
@@ -336,8 +345,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "bad request"})
             return
 
-        if not _auth_ok(inner):
-            _audit(client_ip, "POST", req_path, 401, reason="bad_credentials",
+        if not _config_ok(inner):
+            _audit(client_ip, "POST", req_path, 401, reason="bad_config",
                    req_id=secure.b64e(req_id))
             self._json(401, _GENERIC_DENIAL)
             return
@@ -413,6 +422,10 @@ def main():
         warnings.append("ALLOWED_IPS no está definida: se aceptan todas las IPs")
     if not AUTH_USER and not AUTH_PASSWORD:
         warnings.append("AUTH_USER/AUTH_PASSWORD no definidas: credenciales desactivadas")
+    if not OLLAMA_MODEL:
+        warnings.append("OLLAMA_MODEL no definida: no se verifica el modelo del cliente")
+    if not BERT_MODEL:
+        warnings.append("BERT_MODEL no definida: no se verifica el modelo BERT del cliente")
     for msg in warnings:
         sys.stderr.write("[proxy] ADVERTENCIA: %s\n" % msg)
     if STRICT and warnings:

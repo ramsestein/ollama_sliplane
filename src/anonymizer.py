@@ -211,7 +211,7 @@ MEDICAL_ACRONYMS = {
     "hba1c", "colesterol", "hdl", "ldl", "triglicéridos", "got", "gpt",
     "ggt", "fa", "bilirrubina", "creatinina", "urea", "sodio", "potasio",
     "cloro", "calcio", "fósforo", "magnesio", "hierro", "ferritina", "tsh",
-    "t4", "t3", "vitamina", "clínic", "clínico", "hospital", "barcelona",
+    "t4", "t3", "vitamina", "clínic", "clínico", "hospital",
     "urgències", "urgencias", "informe", "hcp", "trastorno", "síndrome",
     "enfermedad", "diabetes", "mellitus", "insuficiencia", "renal",
     "cardíaca", "respiratoria", "aguda", "crónica", "severa", "leve",

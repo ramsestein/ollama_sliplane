@@ -60,19 +60,22 @@ if __name__ == "__main__" and not SECRET:
     sys.exit(1)
 
 
-def _credentials():
-    """Plaintext credentials to embed inside the encrypted payload."""
+def _config():
+    """Client deployment config to embed inside the encrypted payload.
+
+    The server rejects the request unless every value matches its own
+    environment (Ollama model, BERT model, credentials).
+    """
+    config = {"model": DEFAULT_MODEL, "bert_model": BERT_MODEL}
     if AUTH_USER and AUTH_PASSWORD:
-        return {"user": AUTH_USER, "password": AUTH_PASSWORD}
-    return None
+        config["user"] = AUTH_USER
+        config["password"] = AUTH_PASSWORD
+    return config
 
 
 def forward(method, path, body=None):
     """Send an encrypted request to the remote proxy; returns (status, body)."""
-    inner = {"method": method, "path": path, "body": body}
-    creds = _credentials()
-    if creds is not None:
-        inner["credentials"] = creds
+    inner = {"method": method, "path": path, "body": body, "config": _config()}
     secret = secure.load_secret(SECRET)
     envelope = secure.encrypt_request(secret, json.dumps(inner).encode("utf-8"))
     req_id = secure.b64d(envelope["req_id"])

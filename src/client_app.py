@@ -178,11 +178,11 @@ def ping_server(url):
     return resp.status == 200 and data.get("ok") is True
 
 
-def secure_request(secret, base_url, method, path, body, auth=None, timeout=600):
+def secure_request(secret, base_url, method, path, body, config=None, timeout=600):
     """Encrypted request to the remote proxy. Returns {status, body}."""
     inner = {"method": method, "path": path, "body": body}
-    if auth and auth.get("user") and auth.get("password"):
-        inner["credentials"] = {"user": auth["user"], "password": auth["password"]}
+    if config:
+        inner["config"] = config
     secret_bytes = secure.load_secret(secret)
     envelope = secure.encrypt_request(secret_bytes, json.dumps(inner).encode("utf-8"))
     req_id = secure.b64d(envelope["req_id"])
@@ -533,9 +533,10 @@ class ClientApp:
         user = self.vars["AUTH_USER"].get().strip()
         password = self.vars["AUTH_PASSWORD"].get().strip()
 
-        auth = None
+        config = {"model": model, "bert_model": model_repo()}
         if user and password:
-            auth = {"user": user, "password": password}
+            config["user"] = user
+            config["password"] = password
 
         messages = [dict(m) for m in self.history]
         if self.anon is not None:
@@ -545,7 +546,7 @@ class ClientApp:
 
         body = {"model": model, "messages": messages, "stream": False}
         result = secure_request(
-            secret, url, "POST", "/v1/chat/completions", body, auth
+            secret, url, "POST", "/v1/chat/completions", body, config
         )
 
         status = result.get("status")

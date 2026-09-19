@@ -13,31 +13,62 @@ def test_parse_allowed_ips_empty():
     assert proxy._parse_allowed_ips("") == []
 
 
-def test_auth_ok(monkeypatch):
+def _config(user="admin", password="secret", model="m1", bert="bert1"):
+    return {
+        "config": {
+            "user": user,
+            "password": password,
+            "model": model,
+            "bert_model": bert,
+        }
+    }
+
+
+def test_config_ok(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "admin")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
-    inner = {"credentials": {"user": "admin", "password": "secret"}}
-    assert proxy._auth_ok(inner) is True
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
+    assert proxy._config_ok(_config()) is True
 
 
-def test_auth_ok_wrong_password(monkeypatch):
+def test_config_wrong_password(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "admin")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
-    inner = {"credentials": {"user": "admin", "password": "wrong"}}
-    assert proxy._auth_ok(inner) is False
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
+    assert proxy._config_ok(_config(password="wrong")) is False
 
 
-def test_auth_ok_missing_credentials(monkeypatch):
+def test_config_wrong_model(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "admin")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
-    assert proxy._auth_ok({}) is False
-    assert proxy._auth_ok(None) is False
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
+    assert proxy._config_ok(_config(model="m2")) is False
 
 
-def test_auth_disabled_without_credentials(monkeypatch):
+def test_config_wrong_bert(monkeypatch):
+    monkeypatch.setattr(proxy, "AUTH_USER", "admin")
+    monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
+    assert proxy._config_ok(_config(bert="bert2")) is False
+
+
+def test_config_missing(monkeypatch):
+    monkeypatch.setattr(proxy, "AUTH_USER", "admin")
+    monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
+    assert proxy._config_ok({}) is False
+    assert proxy._config_ok(None) is False
+
+
+def test_config_disabled_without_server_fields(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "")
-    assert proxy._auth_ok(None) is True
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "")
+    assert proxy._config_ok({"config": {}}) is True
 
 
 def test_ip_allowed(monkeypatch):

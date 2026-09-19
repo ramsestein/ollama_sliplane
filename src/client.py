@@ -33,11 +33,11 @@ def load_secret(cli_secret):
     sys.exit(1)
 
 
-def secure_request(secret, base_url, method, path, body, auth=None, timeout=600):
+def secure_request(secret, base_url, method, path, body, config=None, timeout=600):
     """Encrypted request to the remote proxy. Returns {status, body}."""
     inner = {"method": method, "path": path, "body": body}
-    if auth and auth.get("user") and auth.get("password"):
-        inner["credentials"] = {"user": auth["user"], "password": auth["password"]}
+    if config:
+        inner["config"] = config
 
     secret_bytes = secure.load_secret(secret)
     envelope = secure.encrypt_request(secret_bytes, json.dumps(inner).encode("utf-8"))
@@ -76,9 +76,10 @@ def main():
     user = args.user or _read_env("AUTH_USER")
     password = args.password or _read_env("AUTH_PASSWORD")
     model = _read_env("OLLAMA_MODEL") or args.model
-    auth = None
+    config = {"model": model, "bert_model": _read_env("BERT_MODEL")}
     if user and password:
-        auth = {"user": user, "password": password}
+        config["user"] = user
+        config["password"] = password
 
     # 1) health
     try:
@@ -94,7 +95,7 @@ def main():
         "messages": [{"role": "user", "content": args.prompt}],
         "stream": False,
     }
-    result = secure_request(secret, base, "POST", "/v1/chat/completions", body, auth)
+    result = secure_request(secret, base, "POST", "/v1/chat/completions", body, config)
     if result.get("status") != 200:
         print("[FAIL] Server responded %s: %s" % (result.get("status"), result.get("body")))
         sys.exit(1)
