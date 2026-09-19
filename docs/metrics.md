@@ -10,13 +10,20 @@ below are produced by scripts in `eval/` and versioned under
 ## Contamination status
 
 - **CARMEN-I is retired as a headline metric**: the model was fine-tuned on
-  CARMEN-I and no public train/test split could be determined (see
-  `docs/dev/eval-contamination.md`). Any CARMEN-I number is
-  *in-distribution, upper bound, possible train overlap* — an open
-  question for the authors.
+  CARMEN-I and no public train/test split could be determined. Any
+  CARMEN-I number is *in-distribution, upper bound, possible train
+  overlap* — an open question for the authors.
 - **MEDDOCAN is clean**: the model was not trained on MEDDOCAN. The
   calibration partition (`train`, 500 docs) is excluded; evaluation uses
   `dev` + `test` (500 docs).
+
+## Baselines considered and excluded
+
+- **Microsoft Presidio (spaCy `es`)** was evaluated as an external
+  baseline ([`ramsestein/presidio_carmen`](https://github.com/ramsestein/presidio_carmen)).
+  It is not aligned with the MEDDOCAN annotation guidelines and
+  performed poorly on CARMEN-I, so it is not a meaningful comparison and
+  is excluded from the tables.
 
 ## MEDDOCAN (dev + test, out-of-distribution)
 
