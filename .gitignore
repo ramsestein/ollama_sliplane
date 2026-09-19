@@ -12,6 +12,9 @@ carmina_3_suite/
 # Modelo BERT de anonimización (pesado, se descarga/copia aparte)
 models/
 
+# Corpus clínicos locales (CARMEN-I, MEDDOCAN). Nunca versionar ni pushear.
+data/
+
 # Sistema
 .DS_Store
 Thumbs.db
