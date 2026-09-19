@@ -145,27 +145,18 @@ def generate_prompts(seed: int, n: int):
     return prompts
 
 
-def _run_anonymizer(text, mode):
-    if mode == "regex":
-        anon = common.anonymizer.Anonymizer.__new__(common.anonymizer.Anonymizer)
-        anon.reset()
-        anon.detect = anon._regex_detect
-        return anon.anonymize(text), anon.text_to_ph
-    raise SystemExit(
-        "promptbench --mode %s requiere el modelo BERT (pendiente: TODO)." % mode
-    )
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Synthetic prompt benchmark")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n", type=int, default=20)
     parser.add_argument("--mode", choices=["regex", "bert", "combined"],
-                        default="regex")
+                        default="combined")
+    parser.add_argument("--model-dir", default=None)
     parser.add_argument("--out", default="eval/results/promptbench.json")
     args = parser.parse_args()
 
     prompts = generate_prompts(args.seed, args.n)
+    predictor = common.Predictor(args.mode, args.model_dir)
 
     strict_tp = 0
     relaxed_tp = 0
@@ -178,8 +169,8 @@ def main() -> int:
     for prompt in prompts:
         text = prompt["text"]
         gold = prompt["gold"]
-        _, text_to_ph = _run_anonymizer(text, args.mode)
-        pred = common.regex_only_detect(text)
+        _, text_to_ph = predictor.anonymize(text)
+        pred = predictor.detect(text)
 
         total_gold += len(gold)
         total_pred += len(pred)

@@ -21,6 +21,14 @@ from src import anonymizer  # noqa: E402
 # (same set used in docs/metrics.md before regeneration).
 CRITICAL_TAGS = {"EMAIL", "FAMILY", "NAME", "ID", "PHONE", "URL", "PROFESSIONAL"}
 
+# Pinned model identity used for every BERT-based evaluation.
+MODEL_META = {
+    "repo": "BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon",
+    "revision": "83db1112c37c7ef527a9ba6d6b4d1be18b4bca9b",
+    # SHA-256 of the local pytorch_model.bin (see docs/dev/handoff.md).
+    "weights_sha256": "a8b2976c284b72db42adf97df8d5a1609ca477f3abdae71a5d201d4d3ff89acd",
+}
+
 
 # ── Parsing ────────────────────────────────────────────────────────────────
 def read_text(txt_path: Path) -> str:
@@ -79,6 +87,41 @@ def regex_only_detect(text: str) -> list[dict]:
     """
     anon = anonymizer.Anonymizer.__new__(anonymizer.Anonymizer)
     return anon._regex_detect(text)
+
+
+class Predictor:
+    """Unified detector/anonymizer for the eval harness.
+
+    `mode` is one of "regex", "bert" or "combined". BERT modes load the model
+    once (default `models/bsc-bio-ehr-es-carmen-anon`).
+    """
+
+    def __init__(self, mode: str, model_dir=None):
+        self.mode = mode
+        if mode == "regex":
+            self._anon = anonymizer.Anonymizer.__new__(anonymizer.Anonymizer)
+            self._anon.reset()
+            self._anon.detect = self._anon._regex_detect
+        else:
+            from src import anonymizer as _an
+
+            # Anonymizer expects the PARENT directory (it appends the repo
+            # basename), i.e. the `models/` folder.
+            model_dir = model_dir or (ROOT / "models")
+            self._anon = _an.Anonymizer(model_dir=model_dir)
+
+    def detect(self, text: str) -> list[dict]:
+        if self.mode == "bert":
+            return self._anon._bert_detect(text)
+        return self._anon.detect(text)
+
+    def anonymize(self, text: str):
+        """Return (anonymized_text, text_to_ph map)."""
+        self._anon.reset()
+        return self._anon.anonymize(text), self._anon.text_to_ph
+
+    def deanonymize(self, text: str) -> str:
+        return self._anon.deanonymize(text)
 
 
 # ── Span matching ──────────────────────────────────────────────────────────

@@ -1,40 +1,41 @@
 {
   "script": "eval/cost.py",
-  "generated": "2026-09-19T05:35:21.727911Z",
-  "code_revision": "e10da368543271f69292d83d139f8f761bedcd7d",
+  "generated": "2026-09-19T08:12:32.775026Z",
+  "code_revision": "86e166302698c0b21052f3de840ea6be6ec34b12",
+  "mode": "combined",
   "hardware": {
     "cpu": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
     "platform": "Windows-10-10.0.26200-SP0"
   },
   "anonymization_latency_ms": {
-    "documents": 100,
-    "p50": 5.1028,
-    "p95": 8.9593
+    "documents": 30,
+    "p50": 827.1039,
+    "p95": 1175.8449
   },
   "encryption_ms": [
     {
       "size_bytes": 64,
-      "p50_ms": 0.0221,
-      "p95_ms": 0.0254
+      "p50_ms": 0.0346,
+      "p95_ms": 0.0571
     },
     {
       "size_bytes": 1024,
-      "p50_ms": 0.0291,
-      "p95_ms": 0.0316
+      "p50_ms": 0.0446,
+      "p95_ms": 0.0583
     },
     {
       "size_bytes": 4096,
-      "p50_ms": 0.0487,
-      "p95_ms": 0.0519
+      "p50_ms": 0.0747,
+      "p95_ms": 0.0946
     },
     {
       "size_bytes": 16384,
-      "p50_ms": 0.1254,
-      "p95_ms": 0.1409
+      "p50_ms": 0.1927,
+      "p95_ms": 0.2349
     }
   ],
-  "client_peak_memory_bytes": 482140,
+  "client_peak_memory_bytes": 220674,
   "notes": [
-    "Regex-only anonymization on CPU; BERT latency is TODO until the model is available locally."
+    "Anonymization latency measured over the full pipeline (BERT + regex when mode=combined) on CPU."
   ]
 }

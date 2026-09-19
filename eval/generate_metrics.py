@@ -140,10 +140,11 @@ def main() -> int:
         a = cost["anonymization_latency_ms"]
         lines += [
             f"- Hardware: `{cost['hardware']['cpu']}` / `{cost['hardware']['platform']}`.",
-            f"- Anonymization (regex, CPU): p50 {a['p50']} ms, p95 {a['p95']} ms "
-            f"over {a['documents']} documents.",
-            f"- Client peak memory (tracemalloc): "
-            f"{cost['client_peak_memory_bytes'] / 1024 / 1024:.1f} MiB.",
+            f"- Anonymization (`{cost.get('mode', 'combined')}`, CPU): "
+            f"p50 {a['p50']} ms, p95 {a['p95']} ms over {a['documents']} documents.",
+            f"- Client peak memory (tracemalloc, Python only): "
+            f"{cost['client_peak_memory_bytes'] / 1024 / 1024:.1f} MiB "
+            f"(excludes the ~473 MB of BERT weights).",
             "",
             "| Payload | Encrypt+decrypt p50 | p95 |",
             "|---|---|---|",

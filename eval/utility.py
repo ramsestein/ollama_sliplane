@@ -42,39 +42,28 @@ PERTURBATIONS = {
 }
 
 
-def _regex_anon():
-    anon = common.anonymizer.Anonymizer.__new__(common.anonymizer.Anonymizer)
-    anon.reset()
-    anon.detect = anon._regex_detect
-    return anon
-
-
-def roundtrip(texts):
-    anon = _regex_anon()
+def roundtrip(texts, predictor):
     failures = []
     for text in texts:
-        anon.reset()
-        anonymized = anon.anonymize(text)
-        restored = anon.deanonymize(anonymized)
+        anonymized, _ = predictor.anonymize(text)
+        restored = predictor.deanonymize(anonymized)
         if restored != text:
             failures.append({"text": text, "anonymized": anonymized,
                              "restored": restored})
     return failures
 
 
-def robustness(texts):
-    anon = _regex_anon()
+def robustness(texts, predictor):
     results = {}
     for name, perturb in PERTURBATIONS.items():
         ok = 0
         total = 0
         for text in texts:
-            anon.reset()
-            anonymized = anon.anonymize(text)
-            if not any(ph in anonymized for ph in anon.ph_to_text):
+            anonymized, _ = predictor.anonymize(text)
+            if "[" not in anonymized:
                 continue  # no placeholders to perturb
             perturbed = perturb(anonymized)
-            restored = anon.deanonymize(perturbed)
+            restored = predictor.deanonymize(perturbed)
             total += 1
             if restored == text:
                 ok += 1
@@ -90,6 +79,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Utility-preservation eval")
     parser.add_argument("--corpus", default="data/meddocan/corpus")
     parser.add_argument("--sample", type=int, default=50)
+    parser.add_argument("--mode", choices=["regex", "bert", "combined"],
+                        default="combined")
+    parser.add_argument("--model-dir", default=None)
     parser.add_argument("--out", default="eval/results/utility.json")
     args = parser.parse_args()
 
@@ -104,8 +96,9 @@ def main() -> int:
             if seen >= args.sample:
                 break
 
-    failures = roundtrip(texts)
-    rob = robustness(texts)
+    predictor = common.Predictor(args.mode, args.model_dir)
+    failures = roundtrip(texts, predictor)
+    rob = robustness(texts, predictor)
 
     result = {
         "script": "eval/utility.py",

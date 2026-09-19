@@ -20,46 +20,47 @@ below are produced by scripts in `eval/` and versioned under
 
 ## MEDDOCAN (dev + test, out-of-distribution)
 
-- Mode: `regex`; documents: 500;
-  revision `e10da3685432`.
+- Mode: `combined`; documents: 500;
+  revision `86e166302698`.
 
 | Level | Precision | Recall | F1 | F1 CI95 |
 |---|---|---|---|---|
-| Word | 71.8% | 51.5% | 60.0% | 58.9%–60.5% |
-| Span strict | 53.0% | 34.7% | 41.9% | — |
-| Span relaxed | 80.6% | 52.8% | 63.8% | 62.8%–64.2% |
+| Word | 80.9% | 87.4% | 84.0% | 83.7%–85.2% |
+| Span strict | 51.0% | 63.0% | 56.4% | — |
+| Span relaxed | 69.2% | 85.6% | 76.5% | 76.2%–77.4% |
 
-**Document-level leakage** (docs with ≥1 missed direct identifier): 500 / 500 (100.0%).
+**Document-level leakage** (docs with ≥1 missed direct identifier): 350 / 500 (70.0%).
 
 ### Per-class (span strict)
 
 | Class | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
-| AGE | 76.3% | 89.1% | 82.2% | 1039 |
-| DATE | 68.2% | 83.0% | 74.9% | 1335 |
+| AGE | 81.5% | 94.2% | 87.4% | 1039 |
+| DATE | 83.6% | 93.8% | 88.4% | 1335 |
 | EMAIL | 0.0% | 0.0% | 0.0% | 490 |
-| FAMILY | 33.2% | 55.5% | 41.6% | 173 |
-| HOSPITAL | 15.5% | 41.0% | 22.5% | 278 |
-| ID | 0.0% | 0.0% | 0.0% | 1499 |
-| LOCATION | 30.7% | 7.5% | 12.1% | 3500 |
-| NAME | 41.3% | 48.9% | 44.8% | 1005 |
-| ORGANIZATION | 0.0% | 0.0% | 0.0% | 139 |
+| FAMILY | 34.1% | 61.3% | 43.8% | 173 |
+| HOSPITAL | 20.4% | 53.6% | 29.5% | 278 |
+| ID | 0.3% | 0.5% | 0.4% | 1499 |
+| LOCATION | 53.9% | 43.2% | 48.0% | 3500 |
+| NAME | 0.0% | 0.0% | 0.0% | 1005 |
+| ORGANIZATION | 1.7% | 1.4% | 1.5% | 139 |
 | OTHER | 0.0% | 0.0% | 0.0% | 13 |
-| PHONE | 25.8% | 87.5% | 39.9% | 64 |
-| PROFESSION | 0.0% | 0.0% | 0.0% | 13 |
-| PROFESSIONAL | 0.0% | 0.0% | 0.0% | 998 |
-| SEX | 0.0% | 0.0% | 0.0% | 916 |
+| PHONE | 2.2% | 82.8% | 4.2% | 64 |
+| PROFESSION | 39.1% | 69.2% | 50.0% | 13 |
+| PROFESSIONAL | 27.7% | 48.2% | 35.2% | 998 |
+| SEX | 90.3% | 41.8% | 57.2% | 916 |
 | TIME | 0.0% | 0.0% | 0.0% | 0 |
+| URL | 0.0% | 0.0% | 0.0% | 0 |
 
 ## Synthetic prompt benchmark
 
-- Mode: `regex`; prompts: 20.
+- Mode: `combined`; prompts: 20.
 
 | Metric | Value |
 |---|---|
-| Span strict F1 | 43.4% |
-| Span relaxed F1 | 86.0% |
-| Coreference consistency | 82.9% (34/41) |
+| Span strict F1 | 43.0% |
+| Span relaxed F1 | 82.0% |
+| Coreference consistency | 98.1% (51/52) |
 | Placeholder collisions | 0 |
 
 _Limitations: synthetic and templated (optimistic upper bound); possible
@@ -67,28 +68,28 @@ circularity if templates and regex rules share authors._
 
 ## Utility preservation (no LLM)
 
-- Round-trip exact (`deanonymize(anonymize(x)) == x`): 22 failures / 57 texts (61.4%). Failures are bugs.
+- Round-trip exact (`deanonymize(anonymize(x)) == x`): 0 failures / 57 texts (100.0%). Failures are bugs.
 
 | Perturbation | Restored | Rate |
 |---|---|---|
-| uppercase | 0/52 | 0.0% |
-| bold_markers | 0/52 | 0.0% |
-| lost_brackets | 0/52 | 0.0% |
-| inner_space | 0/52 | 0.0% |
-| label_translated | 1/52 | 1.9% |
-| plural_suffix | 0/52 | 0.0% |
-| split_by_newline | 0/52 | 0.0% |
+| uppercase | 0/56 | 0.0% |
+| bold_markers | 0/56 | 0.0% |
+| lost_brackets | 0/56 | 0.0% |
+| inner_space | 0/56 | 0.0% |
+| label_translated | 3/56 | 5.4% |
+| plural_suffix | 0/56 | 0.0% |
+| split_by_newline | 0/56 | 0.0% |
 
 ## Cost
 
 - Hardware: `Intel64 Family 6 Model 198 Stepping 2, GenuineIntel` / `Windows-10-10.0.26200-SP0`.
-- Anonymization (regex, CPU): p50 5.1028 ms, p95 8.9593 ms over 100 documents.
-- Client peak memory (tracemalloc): 0.5 MiB.
+- Anonymization (`combined`, CPU): p50 827.1039 ms, p95 1175.8449 ms over 30 documents.
+- Client peak memory (tracemalloc, Python only): 0.2 MiB (excludes the ~473 MB of BERT weights).
 
 | Payload | Encrypt+decrypt p50 | p95 |
 |---|---|---|
-| 64 B | 0.0221 ms | 0.0254 ms |
-| 1024 B | 0.0291 ms | 0.0316 ms |
-| 4096 B | 0.0487 ms | 0.0519 ms |
-| 16384 B | 0.1254 ms | 0.1409 ms |
+| 64 B | 0.0346 ms | 0.0571 ms |
+| 1024 B | 0.0446 ms | 0.0583 ms |
+| 4096 B | 0.0747 ms | 0.0946 ms |
+| 16384 B | 0.1927 ms | 0.2349 ms |
 

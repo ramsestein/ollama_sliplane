@@ -7,20 +7,19 @@ one of these scripts.
 ## Requirements
 
 - Python 3.9+.
-- Regex-only modes: standard library only (plus `src/`).
-- BERT/combined modes: `torch`, `transformers`, `numpy`, and the gated model
-  `BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon` (revision
-  `83db1112c37c7ef527a9ba6d6b4d1be18b4bca9b`, weights SHA-256
-  `883c7c2c63d01da8af3ea12a8b22237f2896b0ce`) under `models/`.
+- `torch`, `transformers`, `numpy` for the full system (BERT + regex).
+- The BERT model `BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon` under `models/`
+  (already downloaded; the repo pins revision
+  `83db1112c37c7ef527a9ba6d6b4d1be18b4bca9b`).
+- Regex-only ablation modes need only the standard library.
 - Corpora must exist locally under `data/` (never pushed): `data/meddocan/corpus`
   and `data/carmen`.
 
 ## Run
 
 ```bash
-make eval          # regex baseline + utility + cost + docs/metrics.md
-# BERT/combined (TODO until the model is downloaded):
-make eval-bert     # python -m eval.meddocan --mode combined ...
+make eval          # full system (BERT + regex) + utility + cost + docs/metrics.md
+make eval-regex    # regex-only ablation (no model needed)
 ```
 
 ## Scripts
@@ -35,19 +34,17 @@ make eval-bert     # python -m eval.meddocan --mode combined ...
 
 ## TODOs (explicit; no invented numbers)
 
-- **BERT / combined modes**: require the gated model locally. Until then
-  `--mode bert|combined` exits with a clear message and writes no results.
 - **CARMEN-I**: retired as a headline metric (train overlap, no public split);
   see `docs/dev/eval-contamination.md`.
-- **Round-trip bugs found by `eval/utility.py`**: the regex detector emits
-  overlapping/duplicate spans (e.g. a phone also matching the identifier rule),
-  which corrupts placeholders during replacement. Fixing this requires
-  span de-duplication in `src/anonymizer.py`; until then the failures are
-  reported verbatim as bugs in `eval/results/utility.json`.
+- **Round-trip**: byte-exact with the full system (0 failures in
+  `eval/results/utility.json`). The regex-only ablation still emits
+  overlapping/duplicate spans (e.g. a phone also matching the identifier rule)
+  and would need span de-duplication in `src/anonymizer.py` if kept.
 - **Word-level tokenization**: current word-level metric uses whitespace
   tokens; the official MEDDOCAN tokenizer/evaluator is pending.
-- **Presidio baseline** (Phase 4.2): not implemented yet; requires the Presidio
-  + spaCy `es` model.
+- **Presidio baseline is intentionally dropped**: it is not aligned with the
+  MEDDOCAN annotation guidelines and performed poorly on CARMEN-I
+  (see `ramsestein/presidio_carmen`); it would not be a meaningful baseline.
 - **Span-level official evaluator**: strict/relaxed implemented here; alignment
   with the official MEDDOCAN evaluator is pending.
 

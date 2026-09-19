@@ -1,8 +1,8 @@
 {
   "script": "eval/meddocan.py",
-  "generated": "2026-09-19T05:30:39.607619Z",
-  "code_revision": "e10da368543271f69292d83d139f8f761bedcd7d",
-  "mode": "regex",
+  "generated": "2026-09-19T08:04:25.398471Z",
+  "code_revision": "86e166302698c0b21052f3de840ea6be6ec34b12",
+  "mode": "combined",
   "seed": 42,
   "splits": [
     "dev",
@@ -10,39 +10,39 @@
   ],
   "documents": 500,
   "word_level": {
-    "precision": 0.7184,
-    "recall": 0.5148,
-    "f1": 0.5998,
+    "precision": 0.8086,
+    "recall": 0.8736,
+    "f1": 0.8398,
     "f1_ci95": [
-      0.5888,
-      0.6048
+      0.8367,
+      0.8523
     ]
   },
   "span_strict": {
-    "precision": 0.5303,
-    "recall": 0.3471,
-    "f1": 0.4195
+    "precision": 0.5101,
+    "recall": 0.6303,
+    "f1": 0.5639
   },
   "span_relaxed": {
-    "precision": 0.8061,
-    "recall": 0.5276,
-    "f1": 0.6377,
+    "precision": 0.6924,
+    "recall": 0.8557,
+    "f1": 0.7654,
     "f1_ci95": [
-      0.6284,
-      0.6425
+      0.7624,
+      0.7739
     ]
   },
   "per_class": {
     "AGE": {
-      "precision": 0.7627677100494233,
-      "recall": 0.8912415784408084,
-      "f1": 0.8220150909897914,
+      "precision": 0.8151540383014155,
+      "recall": 0.9422521655437921,
+      "f1": 0.8741071428571429,
       "support": 1039
     },
     "DATE": {
-      "precision": 0.6818461538461539,
-      "recall": 0.8299625468164794,
-      "f1": 0.7486486486486487,
+      "precision": 0.8363393453573814,
+      "recall": 0.9378277153558052,
+      "f1": 0.884180790960452,
       "support": 1335
     },
     "EMAIL": {
@@ -52,39 +52,39 @@
       "support": 490
     },
     "FAMILY": {
-      "precision": 0.33217993079584773,
-      "recall": 0.5549132947976878,
-      "f1": 0.4155844155844156,
+      "precision": 0.3408360128617363,
+      "recall": 0.6127167630057804,
+      "f1": 0.4380165289256198,
       "support": 173
     },
     "HOSPITAL": {
-      "precision": 0.1553133514986376,
-      "recall": 0.41007194244604317,
-      "f1": 0.22529644268774704,
+      "precision": 0.20355191256830601,
+      "recall": 0.5359712230215827,
+      "f1": 0.29504950495049503,
       "support": 278
     },
     "ID": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
+      "precision": 0.0034653465346534654,
+      "recall": 0.004669779853235491,
+      "f1": 0.003978402955385053,
       "support": 1499
     },
     "LOCATION": {
-      "precision": 0.30688448074679114,
-      "recall": 0.07514285714285714,
-      "f1": 0.12072526968097315,
+      "precision": 0.5390096188101176,
+      "recall": 0.4322857142857143,
+      "f1": 0.4797843665768194,
       "support": 3500
     },
     "NAME": {
-      "precision": 0.4129520605550883,
-      "recall": 0.48855721393034823,
-      "f1": 0.44758432087511396,
-      "support": 1005
-    },
-    "ORGANIZATION": {
       "precision": 0.0,
       "recall": 0.0,
       "f1": 0.0,
+      "support": 1005
+    },
+    "ORGANIZATION": {
+      "precision": 0.01652892561983471,
+      "recall": 0.014388489208633094,
+      "f1": 0.015384615384615385,
       "support": 139
     },
     "OTHER": {
@@ -94,27 +94,27 @@
       "support": 13
     },
     "PHONE": {
-      "precision": 0.25806451612903225,
-      "recall": 0.875,
-      "f1": 0.398576512455516,
+      "precision": 0.021676891615541923,
+      "recall": 0.828125,
+      "f1": 0.04224790753288163,
       "support": 64
     },
     "PROFESSION": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
+      "precision": 0.391304347826087,
+      "recall": 0.6923076923076923,
+      "f1": 0.5,
       "support": 13
     },
     "PROFESSIONAL": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
+      "precision": 0.2773933102652826,
+      "recall": 0.4819639278557114,
+      "f1": 0.35212298682284043,
       "support": 998
     },
     "SEX": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
+      "precision": 0.9033018867924528,
+      "recall": 0.4181222707423581,
+      "f1": 0.5716417910447761,
       "support": 916
     },
     "TIME": {
@@ -122,12 +122,18 @@
       "recall": 0.0,
       "f1": 0.0,
       "support": 0
+    },
+    "URL": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
     }
   },
   "leakage": {
-    "leaked_docs": 500,
+    "leaked_docs": 350,
     "total_docs": 500,
-    "rate": 1.0
+    "rate": 0.7
   },
   "notes": [
     "Gold and predictions are unified-label PHI spans.",

@@ -43,10 +43,11 @@ Date: 2026-09-19. Branches (one per phase, all with green tests):
   `883c7c2c63d01da8af3ea12a8b22237f2896b0ce`) under `models/`. Until then
   `--mode bert|combined` exits without writing numbers (rule 1: no invented
   figures).
-- **Round-trip bugs found** by `eval/utility.py`: the regex detector emits
-  overlapping/duplicate spans (e.g. a phone also matching the identifier rule),
-  corrupting placeholders. Needs span de-duplication in `src/anonymizer.py`.
-- **Presidio baseline** (4.2): not implemented.
+- **Round-trip**: byte-exact with the full system (0 failures in
+  `eval/results/utility.json`). The regex-only ablation has the overlapping-span
+  bug (span de-duplication would be needed only for that ablation).
+- **Presidio baseline**: intentionally dropped — not aligned with MEDDOCAN
+  guidelines and performed poorly on CARMEN-I (`ramsestein/presidio_carmen`).
 - **Official MEDDOCAN tokenizer/evaluator**: word-level uses whitespace tokens;
   strict/relaxed span eval is implemented.
 - **Dependabot PR triage**: not performed here (no repository PR access from

@@ -19,13 +19,6 @@ from eval import common
 from src import secure
 
 
-def _regex_anon():
-    anon = common.anonymizer.Anonymizer.__new__(common.anonymizer.Anonymizer)
-    anon.reset()
-    anon.detect = anon._regex_detect
-    return anon
-
-
 def load_sample(corpus: Path, n: int) -> list[str]:
     texts = []
     for ann in sorted((corpus / "dev" / "brat").glob("*.ann")):
@@ -37,14 +30,13 @@ def load_sample(corpus: Path, n: int) -> list[str]:
     return texts
 
 
-def measure_anonymization(texts, repeats=3):
-    anon = _regex_anon()
+def measure_anonymization(texts, predictor, repeats=3):
     latencies = []
     for _ in range(repeats):
         for text in texts:
-            anon.reset()
+            predictor.anonymize(text)
             t0 = time.perf_counter()
-            anon.anonymize(text)
+            predictor.anonymize(text)
             latencies.append(time.perf_counter() - t0)
     latencies.sort()
     return latencies
@@ -69,12 +61,10 @@ def measure_encryption(secret_bytes, sizes=(64, 1024, 4096, 16384), repeats=200)
     return rows
 
 
-def measure_memory(texts):
-    anon = _regex_anon()
+def measure_memory(texts, predictor):
     tracemalloc.start()
     for text in texts:
-        anon.reset()
-        anon.anonymize(text)
+        predictor.anonymize(text)
     _current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     return peak
@@ -84,6 +74,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Cost benchmark")
     parser.add_argument("--corpus", default="data/meddocan/corpus")
     parser.add_argument("--sample", type=int, default=100)
+    parser.add_argument("--mode", choices=["regex", "bert", "combined"],
+                        default="combined")
+    parser.add_argument("--model-dir", default=None)
     parser.add_argument("--out", default="eval/results/cost.json")
     args = parser.parse_args()
 
@@ -92,15 +85,17 @@ def main() -> int:
         print("[cost] No hay documentos para medir", file=sys.stderr)
         return 2
 
-    anon_lat = measure_anonymization(texts)
+    predictor = common.Predictor(args.mode, args.model_dir)
+    anon_lat = measure_anonymization(texts, predictor)
     secret_bytes = secure.load_secret(secure.generate_secret())
     enc_rows = measure_encryption(secret_bytes)
-    peak_mem = measure_memory(texts)
+    peak_mem = measure_memory(texts, predictor)
 
     result = {
         "script": "eval/cost.py",
         "generated": datetime.datetime.utcnow().isoformat() + "Z",
         "code_revision": _git(),
+        "mode": args.mode,
         "hardware": {
             "cpu": platform.processor() or platform.machine(),
             "platform": platform.platform(),
@@ -113,8 +108,10 @@ def main() -> int:
         "encryption_ms": enc_rows,
         "client_peak_memory_bytes": peak_mem,
         "notes": [
-            "Regex-only anonymization on CPU; BERT latency is TODO until the "
-            "model is available locally.",
+            "Anonymization latency measured over the full pipeline "
+            "(BERT + regex when mode=combined) on CPU.",
+            "Peak memory is tracemalloc (Python allocations only); it does not "
+            "include the ~473 MB of BERT weights held by torch.",
         ],
     }
 

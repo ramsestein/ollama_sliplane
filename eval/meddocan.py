@@ -30,29 +30,6 @@ def git_revision() -> str:
         return "unknown"
 
 
-def predict(mode: str, text: str, model_dir: Path | None):
-    if mode == "regex":
-        return common.regex_only_detect(text)
-
-    # BERT / combined need the real model.
-    model_dir = model_dir or (common.ROOT / "models" / "bsc-bio-ehr-es-carmen-anon")
-    if not model_dir.exists():
-        print(
-            "[eval] El modelo BERT no está disponible en %s. "
-            "Descárgalo (repo gated BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon) y "
-            "vuelve a ejecutar. No se generan cifras." % model_dir,
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    from src import anonymizer
-
-    anon = anonymizer.Anonymizer(model_dir=model_dir)
-    if mode == "bert":
-        return anon._bert_detect(text)
-    return anon.detect(text)
-
-
 def load_documents(splits: list[str], corpus: Path):
     docs = []
     for split in splits:
@@ -75,7 +52,7 @@ def main() -> int:
     parser.add_argument("--corpus", default="data/meddocan/corpus")
     parser.add_argument("--split", default="dev,test")
     parser.add_argument("--mode", choices=["regex", "bert", "combined"],
-                        default="regex")
+                        default="combined")
     parser.add_argument("--model-dir", default=None)
     parser.add_argument("--out", default="eval/results/meddocan.json")
     parser.add_argument("--seed", type=int, default=42)
@@ -90,6 +67,14 @@ def main() -> int:
         print("[eval] No se encontraron documentos en %s" % corpus, file=sys.stderr)
         return 2
 
+    if args.mode in ("bert", "combined"):
+        model_dir = Path(args.model_dir) if args.model_dir else (common.ROOT / "models")
+        if not (model_dir / "bsc-bio-ehr-es-carmen-anon").exists():
+            print("[eval] El modelo BERT no está disponible en %s." % model_dir,
+                  file=sys.stderr)
+            return 2
+    predictor = common.Predictor(args.mode, args.model_dir)
+
     per_doc = []
     per_doc_relaxed = []
     leak_count = 0
@@ -100,7 +85,7 @@ def main() -> int:
     per_class_counts = {}  # label -> [tp, fp, fn]
 
     for name, text, gold in docs:
-        pred = predict(args.mode, text, args.model_dir)
+        pred = predictor.detect(text)
         # Word level (binary PHI over whitespace tokens).
         tokens = [(m.start(), m.end()) for m in __import__("re").finditer(r"\S+", text)]
         gold_tok = {i for i, (s, e) in enumerate(tokens)
@@ -172,6 +157,7 @@ def main() -> int:
         "generated": datetime.datetime.utcnow().isoformat() + "Z",
         "code_revision": git_revision(),
         "mode": args.mode,
+        "model": common.MODEL_META if args.mode != "regex" else None,
         "seed": args.seed,
         "splits": splits,
         "documents": len(docs),

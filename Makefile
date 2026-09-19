@@ -4,25 +4,25 @@
 SEED ?= 42
 BOOTSTRAP ?= 1000
 
-.PHONY: eval eval-regex eval-bert generate-metrics clean
+.PHONY: eval eval-full eval-regex generate-metrics clean
 
-## Full reproducible pipeline (regex baseline; BERT needs the gated model).
-eval: eval-regex generate-metrics
+## Full reproducible pipeline (the real system: BERT + regex).
+eval: eval-full generate-metrics
 
-eval-regex:
-	python -m eval.meddocan --corpus data/meddocan/corpus --mode regex \
+eval-full:
+	python -m eval.meddocan --corpus data/meddocan/corpus --mode combined \
 		--out eval/results/meddocan.json --bootstrap $(BOOTSTRAP) --seed $(SEED)
-	python -m eval.promptbench --mode regex --out eval/results/promptbench.json \
-		--seed $(SEED)
-	python -m eval.utility --corpus data/meddocan/corpus \
+	python -m eval.promptbench --mode combined \
+		--out eval/results/promptbench.json --seed $(SEED)
+	python -m eval.utility --corpus data/meddocan/corpus --mode combined \
 		--out eval/results/utility.json
-	python -m eval.cost --corpus data/meddocan/corpus \
+	python -m eval.cost --corpus data/meddocan/corpus --mode combined \
 		--out eval/results/cost.json
 
-## BERT/combined intrinsic eval (TODO: requires the gated model under models/).
-eval-bert:
-	python -m eval.meddocan --corpus data/meddocan/corpus --mode combined \
-		--out eval/results/meddocan-combined.json --bootstrap $(BOOTSTRAP) \
+## Regex-only ablation (no model needed).
+eval-regex:
+	python -m eval.meddocan --corpus data/meddocan/corpus --mode regex \
+		--out eval/results/meddocan-regex.json --bootstrap $(BOOTSTRAP) \
 		--seed $(SEED)
 
 generate-metrics:
@@ -30,3 +30,4 @@ generate-metrics:
 
 clean:
 	rm -f eval/results/*.json docs/metrics.md
+
