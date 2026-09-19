@@ -2,8 +2,9 @@
 
 **Estado:** congelado. Ninguna definición de métrica, partición o regla de
 decisión cambia después del commit que congela este documento.
-**Hash de congelado:** `__FREEZE_HASH__` (se rellena con el commit que lo
-contiene, sin cambiar ninguna definición).
+**Hash de congelado:** `3044045e5ad1e2d4c2464aad576be4b8539da127` (el commit
+que contiene este documento; este commit de seguimiento solo registra el hash,
+sin cambiar ninguna definición).
 **Fecha:** 2026-09-19.
 
 Este protocolo regula la segunda pasada de evaluación. Todo ajuste del detector
