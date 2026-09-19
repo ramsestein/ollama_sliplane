@@ -68,3 +68,18 @@ def test_foreign_origin():
     assert make("http://localhost:3000")._foreign_origin() is False
     assert make("http://127.0.0.1:5500")._foreign_origin() is False
     assert make(None)._foreign_origin() is False
+
+
+def test_cors_origin_never_echoes_foreign_or_crlf():
+    def make(origin):
+        handler = lo.Handler.__new__(lo.Handler)
+        handler.headers = {"Origin": origin} if origin else {}
+        return handler
+
+    # Local origins are echoed back verbatim.
+    assert make("http://localhost:3000")._cors_origin() == "http://localhost:3000"
+    assert make("http://127.0.0.1:5500")._cors_origin() == "http://127.0.0.1:5500"
+    # Foreign origins, missing origins and CR/LF injection never reach the header.
+    assert make("https://evil.com")._cors_origin() is None
+    assert make(None)._cors_origin() is None
+    assert make("http://localhost\r\nX-Evil: 1")._cors_origin() is None

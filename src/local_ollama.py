@@ -28,6 +28,8 @@ _MANAGEMENT_PATHS = {
     "/api/blobs",
 }
 
+_LOCAL_ORIGIN_HOSTS = ("127.0.0.1", "localhost", "::1")
+
 
 def _is_management_path(path):
     return path in _MANAGEMENT_PATHS
@@ -159,16 +161,38 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[local] %s\n" % (fmt % args))
 
-    def _foreign_origin(self):
-        """True if the request carries a non-local Origin (browser CSRF)."""
+    def _origin_host(self):
+        """Return (origin, hostname) for the request's Origin, or (None, None)."""
         origin = self.headers.get("Origin")
         if not origin:
-            return False
+            return None, None
         try:
-            host = urllib.parse.urlsplit(origin).hostname
+            return origin, urllib.parse.urlsplit(origin).hostname
         except ValueError:
-            return True
-        return host not in ("127.0.0.1", "localhost", "::1")
+            return origin, None
+
+    def _foreign_origin(self):
+        """True if the request carries a non-local Origin (browser CSRF)."""
+        origin, host = self._origin_host()
+        if origin is None:
+            return False
+        return host not in _LOCAL_ORIGIN_HOSTS
+
+    def _cors_origin(self):
+        """Origin to echo into Access-Control-Allow-Origin, or None.
+
+        Never echo arbitrary user input into the header: the value must parse
+        to a local host and must not contain CR or LF (HTTP response
+        splitting). Requests without an Origin get no CORS header at all.
+        """
+        origin, host = self._origin_host()
+        if origin is None:
+            return None
+        if "\r" in origin or "\n" in origin:
+            return None
+        if host not in _LOCAL_ORIGIN_HOSTS:
+            return None
+        return origin
 
     def _send(self, code, data, content_type="application/json"):
         if isinstance(data, (dict, list)):
@@ -180,7 +204,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.send_response(code)
             self.send_header("Content-Type", content_type)
-            self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin") or "*")
+            origin = self._cors_origin()
+            if origin:
+                self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Content-Length", str(len(data)))
@@ -201,7 +227,9 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin") or "*")
+        origin = self._cors_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
