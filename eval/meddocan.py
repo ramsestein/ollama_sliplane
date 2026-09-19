@@ -78,6 +78,9 @@ def main() -> int:
     per_doc = []
     per_doc_relaxed = []
     leak_count = 0
+    leak_any_count = 0
+    covered_spans = 0
+    total_gold_spans = 0
     # Aggregated counts.
     word_tp = word_fp = word_fn = 0
     strict_tp = strict_fp = strict_fn = 0
@@ -130,6 +133,11 @@ def main() -> int:
 
         if common.document_leakage(gold, pred):
             leak_count += 1
+        if common.document_leakage_any(gold, pred):
+            leak_any_count += 1
+        cov, tot = common.span_coverage(gold, pred)
+        covered_spans += cov
+        total_gold_spans += tot
 
         # Per-doc F1 values for bootstrap CIs.
         per_doc.append(_f1(wtp, wfp, wfn))
@@ -179,15 +187,27 @@ def main() -> int:
             "f1_ci95": [round(x, 4) for x in relaxed_ci],
         },
         "per_class": per_class,
+        "phi_neutralization": {
+            "covered_spans": covered_spans,
+            "total_spans": total_gold_spans,
+            "rate": round(covered_spans / total_gold_spans, 4)
+            if total_gold_spans else 0.0,
+        },
         "leakage": {
-            "leaked_docs": leak_count,
-            "total_docs": len(docs),
-            "rate": round(leak_count / len(docs), 4),
+            "direct_identifiers": {
+                "leaked_docs": leak_count,
+                "total_docs": len(docs),
+                "rate": round(leak_count / len(docs), 4),
+            },
+            "any_phi": {
+                "leaked_docs": leak_any_count,
+                "total_docs": len(docs),
+                "rate": round(leak_any_count / len(docs), 4),
+            },
         },
         "notes": [
             "Gold and predictions are unified-label PHI spans.",
-            "Leakage: documents with >=1 missed direct identifier "
-            "(EMAIL, FAMILY, NAME, ID, PHONE, URL, PROFESSIONAL).",
+            "Direct identifiers for leakage: EMAIL, NAME, PHONE, ID (only these).",
         ],
     }
 
@@ -195,8 +215,11 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                    encoding="utf-8")
-    print("[eval] %d documentos (%s). Word F1=%.4f, Leakage=%.4f"
-          % (len(docs), args.mode, word_f1, result["leakage"]["rate"]))
+    print("[eval] %d documentos (%s). Word F1=%.4f, Neutralización=%.4f, "
+          "Leakage(any PHI)=%.4f"
+          % (len(docs), args.mode, word_f1,
+             result["phi_neutralization"]["rate"],
+             result["leakage"]["any_phi"]["rate"]))
     return 0
 
 

@@ -21,27 +21,31 @@ below are produced by scripts in `eval/` and versioned under
 ## MEDDOCAN (dev + test, out-of-distribution)
 
 - Mode: `combined`; documents: 500;
-  revision `86e166302698`.
+  revision `30fb7e2cf5eb`.
 
 | Level | Precision | Recall | F1 | F1 CI95 |
 |---|---|---|---|---|
-| Word | 80.9% | 87.4% | 84.0% | 83.7%–85.2% |
-| Span strict | 51.0% | 63.0% | 56.4% | — |
-| Span relaxed | 69.2% | 85.6% | 76.5% | 76.2%–77.4% |
+| Word | 81.1% | 88.9% | 84.8% | 84.6%–86.1% |
+| Span strict | 52.1% | 65.8% | 58.2% | — |
+| Span relaxed | 69.9% | 88.3% | 78.0% | 77.8%–78.9% |
 
-**Document-level leakage** (docs with ≥1 missed direct identifier): 350 / 500 (70.0%).
+**PHI neutralization** (label-agnostic): 10362 / 11462 gold PHI spans are covered by at least one prediction (90.4%). A wrong label does not leak data; an uncovered span does.
+
+**Document-level leakage** (docs with ≥1 missed PHI span):
+- direct identifiers only (EMAIL, NAME, PHONE, ID): 91 / 500 (18.2%)
+- any PHI label: 353 / 500 (70.6%)
 
 ### Per-class (span strict)
 
 | Class | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
 | AGE | 81.5% | 94.2% | 87.4% | 1039 |
-| DATE | 83.6% | 93.8% | 88.4% | 1335 |
-| EMAIL | 0.0% | 0.0% | 0.0% | 490 |
-| FAMILY | 34.1% | 61.3% | 43.8% | 173 |
-| HOSPITAL | 20.4% | 53.6% | 29.5% | 278 |
+| DATE | 83.7% | 93.8% | 88.4% | 1335 |
+| EMAIL | 99.7% | 65.9% | 79.4% | 490 |
+| FAMILY | 34.3% | 61.3% | 44.0% | 173 |
+| HOSPITAL | 20.3% | 53.6% | 29.4% | 278 |
 | ID | 0.3% | 0.5% | 0.4% | 1499 |
-| LOCATION | 53.9% | 43.2% | 48.0% | 3500 |
+| LOCATION | 54.4% | 43.2% | 48.2% | 3500 |
 | NAME | 0.0% | 0.0% | 0.0% | 1005 |
 | ORGANIZATION | 1.7% | 1.4% | 1.5% | 139 |
 | OTHER | 0.0% | 0.0% | 0.0% | 13 |
@@ -54,13 +58,13 @@ below are produced by scripts in `eval/` and versioned under
 
 ## Synthetic prompt benchmark
 
-- Mode: `combined`; prompts: 20.
+- Mode: `combined`; prompts: 5000.
 
 | Metric | Value |
 |---|---|
-| Span strict F1 | 43.0% |
-| Span relaxed F1 | 82.0% |
-| Coreference consistency | 98.1% (51/52) |
+| Span strict F1 | 47.9% |
+| Span relaxed F1 | 82.8% |
+| Coreference consistency | 95.3% (13360/14024) |
 | Placeholder collisions | 0 |
 
 _Limitations: synthetic and templated (optimistic upper bound); possible

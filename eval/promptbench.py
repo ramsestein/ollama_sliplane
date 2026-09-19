@@ -28,12 +28,26 @@ def _dni_letter(number: int) -> str:
     return "TRWAGMYFPDXBNJZSQVHLCKE"[number % 23]
 
 
+_FIRST_NAMES = [
+    "María", "Juan", "Josefina", "Pau", "Mercè", "Antoni", "Núria", "Jordi",
+    "Carme", "Ramon", "Laura", "Miquel", "Anna", "Pere", "Rosa", "Josep",
+    "Marta", "David", "Sara", "Marc", "Elena", "Carles", "Montserrat",
+    "Xavier", "Imma",
+]
+
+_LAST_NAMES = [
+    "García López", "Ferrer Puig", "Roca Soler", "Vila Serra",
+    "Martí Bosch", "Puig i Cadafalch", "Serra Vives", "Costa Font",
+    "Oliver Riera", "Soler Prat", "Vidal Roca", "Casas Puig", "Torres Serra",
+    "Ribas Soler", "Pons Vila", "Comas Ferrer", "Dalmau Bosch", "Ferrer Roca",
+    "Mas Puig", "Roig Soler", "Valls Serra", "Batlle Costa", "Font Oliver",
+    "Prats Riera", "Sala Prat",
+]
+
+
 def make_person(rng: random.Random, i: int) -> dict:
-    first = ["María", "Juan", "Josefina", "Pau", "Mercè", "Antoni", "Núria",
-             "Jordi", "Carme", "Ramon"][i % 10]
-    last = ["García López", "Ferrer Puig", "Roca Soler", "Vila Serra",
-            "Martí Bosch", "Puig i Cadafalch", "Serra Vives", "Costa Font",
-            "Oliver Riera", "Soler Prat"][i % 10]
+    first = _FIRST_NAMES[i % len(_FIRST_NAMES)]
+    last = _LAST_NAMES[(i * 7 + i // len(_FIRST_NAMES)) % len(_LAST_NAMES)]
     return {
         "name": f"{first} {last}",
         "lower": f"{first.lower()} {last.lower()}",
@@ -148,7 +162,7 @@ def generate_prompts(seed: int, n: int):
 def main() -> int:
     parser = argparse.ArgumentParser(description="Synthetic prompt benchmark")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--n", type=int, default=20)
+    parser.add_argument("--n", type=int, default=5000)
     parser.add_argument("--mode", choices=["regex", "bert", "combined"],
                         default="combined")
     parser.add_argument("--model-dir", default=None)

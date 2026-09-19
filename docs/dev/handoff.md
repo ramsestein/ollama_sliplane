@@ -78,6 +78,7 @@ Date: 2026-09-19. Branches (one per phase, all with green tests):
 | SSRF prevented | `tests/test_proxy.py::test_upstream_url_rejects_host_trick`, `test_validate_path` |
 | Management routes denied | `tests/test_proxy.py::test_route_allowed_management_denied`, `tests/test_integration.py::test_management_route_denied` |
 | MEDDOCAN regex baseline (word F1, leakage, per-class) | `eval/results/meddocan.json` |
-| Synthetic prompt performance / coreference consistency | `eval/results/promptbench.json` |
+| PHI neutralization (label-agnostic coverage) | `eval/results/meddocan.json` (`phi_neutralization`) |
+| Synthetic prompt performance / coreference consistency | `eval/results/promptbench.json` (5,000 prompts) |
 | Round-trip and placeholder robustness | `eval/results/utility.json` |
 | Latency and memory | `eval/results/cost.json` |

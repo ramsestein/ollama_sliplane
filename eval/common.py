@@ -17,9 +17,9 @@ if str(ROOT) not in sys.path:
 
 from src import anonymizer  # noqa: E402
 
-# Direct identifiers whose leakage is the security-critical figure
-# (same set used in docs/metrics.md before regeneration).
-CRITICAL_TAGS = {"EMAIL", "FAMILY", "NAME", "ID", "PHONE", "URL", "PROFESSIONAL"}
+# Direct identifiers. These, and only these, are the identifiers whose
+# leakage is the security-critical figure: EMAIL, NAME, PHONE, ID.
+CRITICAL_TAGS = {"EMAIL", "NAME", "PHONE", "ID"}
 
 # Pinned model identity used for every BERT-based evaluation.
 MODEL_META = {
@@ -201,7 +201,8 @@ def word_prf(text: str, gold: list[dict], pred: list[dict]) -> tuple:
 def document_leakage(gold: list[dict], pred: list[dict]) -> bool:
     """True if a document has at least one missed direct identifier.
 
-    A gold span leaks when no predicted span overlaps it.
+    A gold span leaks when no predicted span overlaps it. Only the direct
+    identifiers (EMAIL, NAME, PHONE, ID) count.
     """
     for g in gold:
         if g["label"] in CRITICAL_TAGS and not any(
@@ -209,6 +210,29 @@ def document_leakage(gold: list[dict], pred: list[dict]) -> bool:
         ):
             return True
     return False
+
+
+def document_leakage_any(gold: list[dict], pred: list[dict]) -> bool:
+    """True if a document has any gold PHI span missed, regardless of label.
+
+    This is the label-agnostic leakage: what matters for anonymization is not
+    whether the predicted label is right, but whether the real PHI text is
+    replaced at all before it leaves the client.
+    """
+    return any(not any(_span_overlap(g, p) for p in pred) for g in gold)
+
+
+def span_coverage(gold: list[dict], pred: list[dict]) -> tuple:
+    """Return (covered, total) gold spans with >=1 overlapping prediction.
+
+    Label-agnostic: a PHI span is "neutralized" if any predicted span overlaps
+    it, even if the predicted label is wrong.
+    """
+    covered = 0
+    for g in gold:
+        if any(_span_overlap(g, p) for p in pred):
+            covered += 1
+    return covered, len(gold)
 
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────

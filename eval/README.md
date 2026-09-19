@@ -26,8 +26,8 @@ make eval-regex    # regex-only ablation (no model needed)
 
 | Script | Purpose |
 |---|---|
-| `eval/meddocan.py` | MEDDOCAN dev+test intrinsic eval: word/span P/R/F1, per-class, document leakage, bootstrap CI |
-| `eval/promptbench.py` | Synthetic prompt benchmark (gold by construction): span F1, coreference consistency, collisions |
+| `eval/meddocan.py` | MEDDOCAN dev+test intrinsic eval: word/span P/R/F1, per-class, PHI neutralization (label-agnostic), document leakage, bootstrap CI |
+| `eval/promptbench.py` | Synthetic prompt benchmark (gold by construction, 5,000 prompts): span F1, coreference consistency, collisions |
 | `eval/utility.py` | Round-trip exactness and placeholder robustness under deterministic perturbations |
 | `eval/cost.py` | Anonymization/encryption latency and client memory; declares hardware |
 | `eval/generate_metrics.py` | Renders `docs/metrics.md` from `eval/results/*.json` |

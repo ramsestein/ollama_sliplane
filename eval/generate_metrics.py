@@ -58,6 +58,7 @@ def main() -> int:
         wl = meddocan["word_level"]
         ss = meddocan["span_strict"]
         sr = meddocan["span_relaxed"]
+        nn = meddocan["phi_neutralization"]
         lk = meddocan["leakage"]
         lines += [
             f"- Mode: `{meddocan['mode']}`; documents: {meddocan['documents']};",
@@ -72,8 +73,18 @@ def main() -> int:
             f"| Span relaxed | {_pct(sr['precision'])} | {_pct(sr['recall'])} | "
             f"{_pct(sr['f1'])} | {_ci(sr)} |",
             "",
-            f"**Document-level leakage** (docs with ≥1 missed direct identifier): "
-            f"{lk['leaked_docs']} / {lk['total_docs']} ({_pct(lk['rate'])}).",
+            "**PHI neutralization** (label-agnostic): "
+            f"{nn['covered_spans']} / {nn['total_spans']} gold PHI spans are "
+            f"covered by at least one prediction ({_pct(nn['rate'])}). A wrong "
+            "label does not leak data; an uncovered span does.",
+            "",
+            "**Document-level leakage** (docs with ≥1 missed PHI span):",
+            f"- direct identifiers only (EMAIL, NAME, PHONE, ID): "
+            f"{lk['direct_identifiers']['leaked_docs']} / "
+            f"{lk['direct_identifiers']['total_docs']} "
+            f"({_pct(lk['direct_identifiers']['rate'])})",
+            f"- any PHI label: {lk['any_phi']['leaked_docs']} / "
+            f"{lk['any_phi']['total_docs']} ({_pct(lk['any_phi']['rate'])})",
             "",
             "### Per-class (span strict)",
             "",

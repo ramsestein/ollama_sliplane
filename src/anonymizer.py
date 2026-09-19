@@ -107,6 +107,8 @@ STEP2_TO_UNIFIED = {
     "IDENTIFICADOR": "ID",
     "HOSPITAL": "HOSPITAL",
     "PERSON": "NAME",
+    "EMAIL": "EMAIL",
+    "URL": "URL",
     "GENERICA": "OTHER",
 }
 
@@ -159,6 +161,13 @@ PATTERNS = {
     ),
     "time": re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\s*h?\b", re.IGNORECASE),
     "phone": re.compile(r"\b(?:(?:\+|00)\d{1,3}[\s.-]?)?[3456789](?:[\s.-]?\d){8}\b"),
+    "email": re.compile(
+        r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"
+    ),
+    "url": re.compile(
+        r"\b(?:https?://|ftp://|www\.)[^\s<>\"']+"
+        r"|\b[A-Za-z0-9][A-Za-z0-9.\-]*\.(?:com|es|net|org|cat|eu|edu|gov|info|biz)\b"
+    ),
     "doctor": re.compile(
         r"\bdr[as]?\.?\s+(?!(?:OI|OD|HTA|EA|AP|ANM|AMC|dret|dreta|drenaje|dren|droga|drogueta|dramático|drástica)\b)[a-zÁÉÍÓÚÑ][a-zjqñáéíóúü]+(?:\s+[a-zÁÉÍÓÚÑ][a-zjqñáéíóúü]+)*(?=[.,;?\)\]\/\s-]*|$)",
         re.IGNORECASE,
@@ -401,7 +410,7 @@ class Anonymizer:
             matches.append((match.start(), match.end(), "DATE", match.group()))
         for match in PATTERNS["time"].finditer(text):
             matches.append((match.start(), match.end(), "TIME", match.group()))
-        for label in ["phone", "doctor", "hospital", "age", "location", "address", "family_relation", "identifier"]:
+        for label in ["phone", "email", "url", "doctor", "hospital", "age", "location", "address", "family_relation", "identifier"]:
             for match in PATTERNS[label].finditer(text):
                 if label == "family_relation":
                     out_label = "RELATION"
@@ -458,6 +467,14 @@ class Anonymizer:
                 if not already_marked(match.start(), match.end()):
                     matches.append((match.start(), match.end(), label, match.group()))
 
+        # De-duplicate overlapping spans: keep the longest, so a phone is not
+        # double-matched by the identifier rule or a URL by the email domain.
+        # Overlapping placeholders would corrupt reversible replacement.
+        deduped = []
+        for m in sorted(matches, key=lambda x: (x[1] - x[0]), reverse=True):
+            if not any(m[0] < k[1] and k[0] < m[1] for k in deduped):
+                deduped.append(m)
+        matches = deduped
         matches.sort(key=lambda x: x[0])
         entities = []
         for s, e, label, t in matches:

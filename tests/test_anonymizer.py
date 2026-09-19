@@ -33,6 +33,19 @@ def test_regex_detects_entities():
     assert "PROFESSIONAL" in labels
 
 
+def test_regex_detects_email_and_url_without_dup_phone():
+    anon = anonymizer.Anonymizer.__new__(anonymizer.Anonymizer)
+    ents = anon._regex_detect(
+        "Contacto: eromeroselas@yahoo.es y web http://www.hospital.com. "
+        "Tel 600123456."
+    )
+    labels = {e["label"] for e in ents}
+    assert "EMAIL" in labels
+    assert "URL" in labels
+    # The phone must not be double-matched by the identifier rule (span dedup).
+    assert sum(1 for e in ents if e["label"] == "PHONE") == 1
+
+
 def _make_anon(entities):
     anon = anonymizer.Anonymizer.__new__(anonymizer.Anonymizer)
     anon.text_to_ph = {}
