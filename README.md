@@ -95,7 +95,8 @@ Installation (server and client) is documented in
 
 ## Security
 
-See [`docs/SECURITY.md`](docs/SECURITY.md) for the security model, hardening and how to
+See [`docs/threat-model.md`](docs/threat-model.md) for the threat model and
+[`docs/SECURITY.md`](docs/SECURITY.md) for the security model, hardening and how to
 report vulnerabilities.
 
 ## Evaluation

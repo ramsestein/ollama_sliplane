@@ -27,13 +27,22 @@ fix and a coordinated advisory.
 
 ## Security model
 
-- The message body and the credentials are protected by two independent
-  AES-256-GCM layers (see `src/secure.py`).
-- The Ollama server is never exposed: only the proxy listens on `0.0.0.0`.
-- The proxy enforces an IP allowlist, per-IP rate limiting, anti-replay and
-  trusts `X-Forwarded-For` only from configured reverse proxies.
-- BERT anonymization runs on the client; the server never sees the real
-  entities.
+The authoritative description is
+[`docs/threat-model.md`](threat-model.md).
+
+- Client ↔ proxy traffic is protected by protocol v2: direction-separated
+  AES-256-GCM with HKDF-SHA256 key derivation, server-clock freshness, and a
+  bounded anti-replay cache (see `src/secure.py` and
+  `docs/dev/adr-001-protocol.md`).
+- The Ollama server is only reachable inside the container; only the proxy
+  listens on `0.0.0.0`.
+- The proxy enforces an explicit `(method, path)` allowlist, an IP allowlist,
+  per-IP rate limiting, anti-replay, a request-body limit, and trusts
+  `X-Forwarded-For` only from configured reverse proxies.
+- BERT pseudonymisation runs on the client; the placeholder map never leaves
+  the client. Whether the transmitted text is anonymous for the recipient
+  depends on the residual re-identification risk (see the threat model and
+  `docs/metrics.md`).
 
 ## Best practices for operators
 
