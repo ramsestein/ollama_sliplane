@@ -33,10 +33,12 @@
 
    ```bash
    pip install -r requirements.txt
+   pip install -r requirements-client.txt
    ```
 
-   `torch` and `transformers` (included in `requirements.txt`) are required for
-   the on-device BERT anonymization.
+   The second file installs `torch`, `transformers` and `huggingface_hub`,
+   which are required only for the on-device BERT anonymization. The server
+   does not need them.
 
 2. Copy and edit the environment template:
 

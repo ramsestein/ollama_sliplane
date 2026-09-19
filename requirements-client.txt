@@ -1,0 +1,10 @@
+# Dependencias opcionales del cliente para la anonimización BERT on-device
+# (client_app.py, local_ollama.py, anonymizer.py). No se instalan en el
+# servidor ni en CI.
+#
+# Seguridad: pip-audit reporta avisos en torch y transformers que no aplican
+# a Pukara, que solo ejecuta inferencia sobre un modelo BERT local y de
+# confianza. Ver docs/SECURITY.md.
+torch>=2.1
+transformers>=4.40
+huggingface_hub>=0.23

@@ -1,7 +1,6 @@
-# Dependencias del cliente (client_app.py, local_ollama.py, anonymizer.py)
+# Dependencias del núcleo: servidor proxy y cliente base.
 # El servidor (Docker) instala cryptography vía apt (ver Dockerfile).
+# Las dependencias opcionales del cliente (torch, transformers,
+# huggingface_hub) están en requirements-client.txt.
 cryptography>=42.0
 numpy>=1.26
-torch>=2.1
-transformers>=4.40
-huggingface_hub>=0.23

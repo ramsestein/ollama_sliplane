@@ -22,8 +22,8 @@ pip install -r requirements-dev.txt
 cp .env.example .env   # edit with your values
 ```
 
-> Note: `torch` and `transformers` (in `requirements.txt`) are only needed for
-> BERT anonymization. The unit tests do not require them.
+> Note: `torch` and `transformers` (in `requirements-client.txt`) are only
+> needed for BERT anonymization. The unit tests do not require them.
 
 ## Running the tests
 

@@ -32,8 +32,7 @@ The authoritative description is
 
 - Client ↔ proxy traffic is protected by protocol v2: direction-separated
   AES-256-GCM with HKDF-SHA256 key derivation, server-clock freshness, and a
-  bounded anti-replay cache (see `src/secure.py` and
-  `docs/dev/adr-001-protocol.md`).
+  bounded anti-replay cache (see `src/secure.py`).
 - The Ollama server is only reachable inside the container; only the proxy
   listens on `0.0.0.0`.
 - The proxy enforces an explicit `(method, path)` allowlist, an IP allowlist,
@@ -43,6 +42,20 @@ The authoritative description is
   the client. Whether the transmitted text is anonymous for the recipient
   depends on the residual re-identification risk (see the threat model and
   `docs/metrics.md`).
+
+## Dependency security
+
+CI audits the runtime dependencies with `pip-audit` and fails on known
+vulnerabilities. The audit covers `requirements.txt` (`cryptography`, `numpy`),
+the dependencies of the server proxy and the base client.
+
+The optional client ML stack (`requirements-client.txt`: `torch`,
+`transformers`, `huggingface_hub`) is used only for on-device BERT inference
+over a local, trusted model. `pip-audit` reports advisories in those packages
+that do not apply to Pukara's threat model (they concern loading untrusted
+models or deserializing untrusted artifacts, which Pukara never does). These
+advisories are acknowledged but not part of the blocking audit; see the
+threat model.
 
 ## Best practices for operators
 

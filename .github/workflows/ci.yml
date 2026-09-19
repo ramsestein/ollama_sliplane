@@ -27,6 +27,9 @@ jobs:
             --cov=src.secure --cov=src.proxy \
             --cov-fail-under=85 --cov-report=term-missing
       - name: Auditoría de dependencias (pip-audit)
+        # Audita solo requirements.txt (núcleo). El stack ML del cliente
+        # (requirements-client.txt) es opcional; sus avisos están documentados
+        # en docs/SECURITY.md y no forman parte de la auditoría bloqueante.
         run: |
           pip install pip-audit
           pip-audit -r requirements.txt
