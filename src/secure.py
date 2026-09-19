@@ -33,7 +33,7 @@ import os
 import threading
 import time
 from collections import OrderedDict
-from typing import Optional, Tuple
+from typing import Optional
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -130,7 +130,7 @@ def _envelope(ts: int, req_id: bytes, nonce: bytes, ciphertext: bytes) -> dict:
     }
 
 
-def _parse(envelope: dict) -> Tuple[int, int, bytes, bytes, bytes]:
+def _parse(envelope: dict) -> tuple[int, int, bytes, bytes, bytes]:
     if not isinstance(envelope, dict):
         raise SecureError("envelope is not an object")
     try:
@@ -166,7 +166,7 @@ def encrypt_request(
 
 def decrypt_request(
     secret: bytes, envelope: dict, now: Optional[int] = None
-) -> Tuple[bytes, bytes]:
+) -> tuple[bytes, bytes]:
     """Decrypt a client->server request. Returns (plaintext, req_id).
 
     Raises SecureError on any failure (tag, freshness, malformed envelope).

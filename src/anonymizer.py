@@ -225,7 +225,7 @@ MEDICAL_ACRONYMS = {
     "ggt", "fa", "bilirrubina", "creatinina", "urea", "sodio", "potasio",
     "cloro", "calcio", "fósforo", "magnesio", "hierro", "ferritina", "tsh",
     "t4", "t3", "vitamina", "clínic", "clínico", "hospital",
-    "urgències", "urgencias", "informe", "hcp", "trastorno", "síndrome",
+    "urgències", "informe", "hcp", "trastorno", "síndrome",
     "enfermedad", "diabetes", "mellitus", "insuficiencia", "renal",
     "cardíaca", "respiratoria", "aguda", "crónica", "severa", "leve",
     "moderada", "tratamiento", "dosis", "pauta", "comprimido", "pastilla",
@@ -287,8 +287,8 @@ class Anonymizer:
             from transformers import AutoModelForTokenClassification, AutoTokenizer
         except ImportError:
             try:
-                from transformers.models.auto import AutoModelForTokenClassification
                 from transformers import AutoTokenizer
+                from transformers.models.auto import AutoModelForTokenClassification
             except ImportError as exc:
                 raise ImportError(
                     "No se pudo importar AutoModelForTokenClassification. "
@@ -464,9 +464,9 @@ class Anonymizer:
             pattern = re.compile(r"\b" + re.escape(t) + r"(?=" + ROBUST_PUNC + r"|$)", re.IGNORECASE)
             for match in pattern.finditer(text):
                 label = "PERSON"
-                for s, e, l, mt in matches:
+                for _s, _e, lab, mt in matches:
                     if t.lower() in mt.lower():
-                        label = l
+                        label = lab
                         break
                 if not already_marked(match.start(), match.end()):
                     matches.append((match.start(), match.end(), label, match.group()))

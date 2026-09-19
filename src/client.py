@@ -85,9 +85,9 @@ def main():
     try:
         with urllib.request.urlopen(base + "/health", timeout=30) as resp:
             health = json.loads(resp.read().decode("utf-8"))
-        print("[OK] Proxy alive: %s" % json.dumps(health))
+        print(f"[OK] Proxy alive: {json.dumps(health)}")
     except Exception as exc:  # noqa: BLE001
-        print("[WARN] /health did not respond: %s" % exc)
+        print(f"[WARN] /health did not respond: {exc}")
 
     # 2) chat cifrado
     body = {
@@ -97,7 +97,7 @@ def main():
     }
     result = secure_request(secret, base, "POST", "/v1/chat/completions", body, config)
     if result.get("status") != 200:
-        print("[FAIL] Server responded %s: %s" % (result.get("status"), result.get("body")))
+        print(f"[FAIL] Server responded {result.get('status')}: {result.get('body')}")
         sys.exit(1)
     content = result["body"]["choices"][0]["message"]["content"]
     print("[OK] Response:")

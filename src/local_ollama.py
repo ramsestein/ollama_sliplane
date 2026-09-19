@@ -337,7 +337,7 @@ def main():
     try:
         secure.load_secret(SECRET)
     except secure.InvalidSecretError as exc:
-        sys.stderr.write("ERROR: ENCRYPTION_SECRET inválida: %s\n" % exc)
+        sys.stderr.write(f"ERROR: ENCRYPTION_SECRET inválida: {exc}\n")
         sys.exit(1)
 
     global REMOTE_URL, LOCAL_PORT
@@ -348,7 +348,7 @@ def main():
 
     server = ThreadingHTTPServer(("127.0.0.1", LOCAL_PORT), Handler)
     sys.stderr.write(
-        "Ollama local en http://127.0.0.1:%d -> %s\n" % (LOCAL_PORT, REMOTE_URL)
+        f"Ollama local en http://127.0.0.1:{LOCAL_PORT} -> {REMOTE_URL}\n"
     )
     server.serve_forever()
 

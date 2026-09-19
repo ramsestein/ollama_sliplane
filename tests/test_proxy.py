@@ -200,7 +200,7 @@ def test_upstream_url():
 def test_upstream_url_rejects_host_trick():
     try:
         proxy._upstream_url("//evil.com/x")
-        assert False, "debería rechazar rutas con //"
+        raise AssertionError("debería rechazar rutas con //")
     except ValueError:
         pass
 

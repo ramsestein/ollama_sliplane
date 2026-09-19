@@ -60,7 +60,7 @@ def _start(handler_cls):
 @pytest.fixture()
 def fake_ollama():
     server = _start(FakeOllamaHandler)
-    yield "http://127.0.0.1:%d" % server.server_port
+    yield f"http://127.0.0.1:{server.server_port}"
     server.shutdown()
 
 
@@ -79,7 +79,7 @@ def proxy_server(fake_ollama, monkeypatch):
     server = ThreadingHTTPServer(("127.0.0.1", 0), proxy.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    yield "http://127.0.0.1:%d" % server.server_port
+    yield f"http://127.0.0.1:{server.server_port}"
     server.shutdown()
 
 

@@ -127,7 +127,7 @@ def _parse_allowed_ips(raw):
             try:
                 nets.append(ipaddress.ip_network(item, strict=False))
             except ValueError:
-                sys.stderr.write("[proxy] invalid IP/CIDR ignored: %s\n" % item)
+                sys.stderr.write(f"[proxy] invalid IP/CIDR ignored: {item}\n")
     return nets
 
 
@@ -414,7 +414,7 @@ def main():
     try:
         secure.load_secret(SECRET)
     except secure.InvalidSecretError as exc:
-        sys.stderr.write("ERROR: ENCRYPTION_SECRET inválida: %s\n" % exc)
+        sys.stderr.write(f"ERROR: ENCRYPTION_SECRET inválida: {exc}\n")
         sys.exit(1)
 
     warnings = []
@@ -427,13 +427,13 @@ def main():
     if not BERT_MODEL:
         warnings.append("BERT_MODEL no definida: no se verifica el modelo BERT del cliente")
     for msg in warnings:
-        sys.stderr.write("[proxy] ADVERTENCIA: %s\n" % msg)
+        sys.stderr.write(f"[proxy] ADVERTENCIA: {msg}\n")
     if STRICT and warnings:
         sys.stderr.write("[proxy] STRICT=1: configuración insegura, no se arranca\n")
         sys.exit(1)
 
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    sys.stderr.write("Proxy seguro escuchando en 0.0.0.0:%d\n" % PORT)
+    sys.stderr.write(f"Proxy seguro escuchando en 0.0.0.0:{PORT}\n")
     server.serve_forever()
 
 

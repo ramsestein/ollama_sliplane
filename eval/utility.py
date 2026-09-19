@@ -121,8 +121,10 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                    encoding="utf-8")
-    print("[utility] roundtrip failures=%d, robustness=%s"
-          % (len(failures), {k: v["rate"] for k, v in rob.items()}))
+    print(
+        f"[utility] roundtrip failures={len(failures)}, "
+        f"robustness={ {k: v['rate'] for k, v in rob.items()} }"
+    )
     return 0
 
 

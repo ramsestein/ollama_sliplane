@@ -35,7 +35,7 @@ def load_documents(splits: list[str], corpus: Path):
     for split in splits:
         ann_dir = corpus / split / "brat"
         if not ann_dir.exists():
-            print("[eval] Falta el split %s en %s" % (split, ann_dir), file=sys.stderr)
+            print(f"[eval] Falta el split {split} en {ann_dir}", file=sys.stderr)
             sys.exit(2)
         for ann_path in sorted(ann_dir.glob("*.ann")):
             txt_path = ann_path.with_suffix(".txt")
@@ -64,13 +64,13 @@ def main() -> int:
 
     docs = load_documents(splits, corpus)
     if not docs:
-        print("[eval] No se encontraron documentos en %s" % corpus, file=sys.stderr)
+        print(f"[eval] No se encontraron documentos en {corpus}", file=sys.stderr)
         return 2
 
     if args.mode in ("bert", "combined"):
         model_dir = Path(args.model_dir) if args.model_dir else (common.ROOT / "models")
         if not (model_dir / "bsc-bio-ehr-es-carmen-anon").exists():
-            print("[eval] El modelo BERT no está disponible en %s." % model_dir,
+            print(f"[eval] El modelo BERT no está disponible en {model_dir}.",
                   file=sys.stderr)
             return 2
     predictor = common.Predictor(args.mode, args.model_dir)
@@ -87,7 +87,7 @@ def main() -> int:
     relaxed_tp = relaxed_fp = relaxed_fn = 0
     per_class_counts = {}  # label -> [tp, fp, fn]
 
-    for name, text, gold in docs:
+    for _name, text, gold in docs:
         pred = predictor.detect(text)
         # Word level (binary PHI over whitespace tokens).
         tokens = [(m.start(), m.end()) for m in __import__("re").finditer(r"\S+", text)]
@@ -215,11 +215,11 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                    encoding="utf-8")
-    print("[eval] %d documentos (%s). Word F1=%.4f, Neutralización=%.4f, "
-          "Leakage(any PHI)=%.4f"
-          % (len(docs), args.mode, word_f1,
-             result["phi_neutralization"]["rate"],
-             result["leakage"]["any_phi"]["rate"]))
+    print(
+        f"[eval] {len(docs)} documentos ({args.mode}). Word F1={word_f1:.4f}, "
+        f"Neutralización={result['phi_neutralization']['rate']:.4f}, "
+        f"Leakage(any PHI)={result['leakage']['any_phi']['rate']:.4f}"
+    )
     return 0
 
 

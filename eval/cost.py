@@ -119,8 +119,10 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                    encoding="utf-8")
-    print("[cost] anon p50=%.3f ms, peak_mem=%d B"
-          % (result["anonymization_latency_ms"]["p50"], peak_mem))
+    print(
+        f"[cost] anon p50={result['anonymization_latency_ms']['p50']:.3f} ms, "
+        f"peak_mem={peak_mem} B"
+    )
     return 0
 
 

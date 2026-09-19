@@ -16,10 +16,9 @@ import socket
 import subprocess
 import sys
 import threading
+import tkinter as tk
 import urllib.request
 from pathlib import Path
-
-import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
 from . import PROJECT_ROOT, secure

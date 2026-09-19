@@ -193,7 +193,7 @@ def main() -> int:
 
         # Consistency: all detected mentions of one canonical entity must share
         # exactly one placeholder.
-        for eid, mentions in prompt["mentions"].items():
+        for _eid, mentions in prompt["mentions"].items():
             phs = {text_to_ph[s] for s, _s, _e, _l in mentions if s in text_to_ph}
             if phs:
                 consistent_total += 1
@@ -240,8 +240,10 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                    encoding="utf-8")
-    print("[promptbench] %d prompts. relaxed F1=%.4f, consistency=%.4f"
-          % (len(prompts), relaxed["f1"], result["coreference"]["consistency_rate"]))
+    print(
+        f"[promptbench] {len(prompts)} prompts. relaxed F1={relaxed['f1']:.4f}, "
+        f"consistency={result['coreference']['consistency_rate']:.4f}"
+    )
     return 0
 
 
