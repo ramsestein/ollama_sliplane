@@ -25,7 +25,7 @@ from tkinter import messagebox, scrolledtext, ttk
 from . import PROJECT_ROOT, secure
 
 ROOT = PROJECT_ROOT
-DEFAULT_MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
+DEFAULT_MODEL_REPO = "BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon"
 
 CONFIG_KEYS = [
     "REMOTE_URL", "ENCRYPTION_SECRET", "AUTH_USER", "AUTH_PASSWORD",
@@ -69,6 +69,11 @@ def load_env(path=".env"):
 def model_repo(env=None):
     env = env if env is not None else load_env()
     return (env.get("BERT_MODEL") or DEFAULT_MODEL_REPO).strip()
+
+
+def model_revision(env=None):
+    env = env if env is not None else load_env()
+    return (env.get("BERT_MODEL_REVISION") or "").strip()
 
 
 def model_dirname(repo=None):
@@ -128,7 +133,11 @@ def ensure_model(models_dir=None):
     if not present:
         try:
             from huggingface_hub import snapshot_download  # noqa: E402
-            snapshot_download(repo_id=repo, local_dir=str(model_dir))
+            kwargs = {"repo_id": repo, "local_dir": str(model_dir)}
+            revision = model_revision()
+            if revision:
+                kwargs["revision"] = revision
+            snapshot_download(**kwargs)
             status = "downloaded"
         except Exception as exc:
             return False, f"not downloadable ({exc.__class__.__name__})"
@@ -169,14 +178,14 @@ def ping_server(url):
     return resp.status == 200 and data.get("ok") is True
 
 
-def secure_request(secret, base_url, method, path, body, auth=None, model="", bert_model="", timeout=600):
+def secure_request(secret, base_url, method, path, body, auth=None, timeout=600):
     """Encrypted request to the remote proxy. Returns {status, body}."""
     inner = {"method": method, "path": path, "body": body}
-    envelope = secure.encrypt(secret, json.dumps(inner).encode("utf-8"))
     if auth and auth.get("user") and auth.get("password"):
-        envelope["auth"] = secure.build_auth_envelope(
-            model, bert_model, auth["user"], auth["password"]
-        )
+        inner["credentials"] = {"user": auth["user"], "password": auth["password"]}
+    secret_bytes = secure.load_secret(secret)
+    envelope = secure.encrypt_request(secret_bytes, json.dumps(inner).encode("utf-8"))
+    req_id = secure.b64d(envelope["req_id"])
     data = json.dumps(envelope).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     req = urllib.request.Request(
@@ -184,7 +193,9 @@ def secure_request(secret, base_url, method, path, body, auth=None, model="", be
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         resp_envelope = json.loads(resp.read().decode("utf-8"))
-    return json.loads(secure.decrypt(secret, resp_envelope).decode("utf-8"))
+    return json.loads(
+        secure.decrypt_response(secret_bytes, resp_envelope, req_id).decode("utf-8")
+    )
 
 
 # ── Color palette (brown tone) ─────────────────────────────────────────────
@@ -521,7 +532,6 @@ class ClientApp:
         model = self.vars["OLLAMA_MODEL"].get().strip()
         user = self.vars["AUTH_USER"].get().strip()
         password = self.vars["AUTH_PASSWORD"].get().strip()
-        bert_model = model_repo()
 
         auth = None
         if user and password:
@@ -535,7 +545,7 @@ class ClientApp:
 
         body = {"model": model, "messages": messages, "stream": False}
         result = secure_request(
-            secret, url, "POST", "/v1/chat/completions", body, auth, model, bert_model
+            secret, url, "POST", "/v1/chat/completions", body, auth
         )
 
         status = result.get("status")

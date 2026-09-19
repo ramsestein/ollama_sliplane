@@ -49,22 +49,22 @@ if __name__ == "__main__" and not SECRET:
     sys.exit(1)
 
 
-def _auth_envelope():
-    """Encrypted credentials (auth layer of double encryption)."""
+def _credentials():
+    """Plaintext credentials to embed inside the encrypted payload."""
     if AUTH_USER and AUTH_PASSWORD:
-        return secure.build_auth_envelope(
-            DEFAULT_MODEL, BERT_MODEL, AUTH_USER, AUTH_PASSWORD
-        )
+        return {"user": AUTH_USER, "password": AUTH_PASSWORD}
     return None
 
 
 def forward(method, path, body=None):
     """Send an encrypted request to the remote proxy; returns (status, body)."""
     inner = {"method": method, "path": path, "body": body}
-    envelope = secure.encrypt(SECRET, json.dumps(inner).encode("utf-8"))
-    auth = _auth_envelope()
-    if auth is not None:
-        envelope["auth"] = auth
+    creds = _credentials()
+    if creds is not None:
+        inner["credentials"] = creds
+    secret = secure.load_secret(SECRET)
+    envelope = secure.encrypt_request(secret, json.dumps(inner).encode("utf-8"))
+    req_id = secure.b64d(envelope["req_id"])
     data = json.dumps(envelope).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     req = urllib.request.Request(
@@ -76,7 +76,9 @@ def forward(method, path, body=None):
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read().decode("utf-8", "replace")
 
-    result = json.loads(secure.decrypt(SECRET, resp_envelope).decode("utf-8"))
+    result = json.loads(
+        secure.decrypt_response(secret, resp_envelope, req_id).decode("utf-8")
+    )
     return result.get("status", 500), result.get("body")
 
 
@@ -261,6 +263,12 @@ def main():
     parser.add_argument("--remote", help="URL del proxy remoto (defecto: la de .env)")
     parser.add_argument("--port", type=int, help="Puerto local (defecto 11434)")
     args = parser.parse_args()
+
+    try:
+        secure.load_secret(SECRET)
+    except secure.InvalidSecretError as exc:
+        sys.stderr.write("ERROR: ENCRYPTION_SECRET inválida: %s\n" % exc)
+        sys.exit(1)
 
     global REMOTE_URL, LOCAL_PORT
     if args.remote:

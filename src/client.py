@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test client for the encrypted Ollama proxy."""
+"""Test client for the encrypted Ollama proxy (protocol v2)."""
 import argparse
 import json
 import os
@@ -33,13 +33,15 @@ def load_secret(cli_secret):
     sys.exit(1)
 
 
-def secure_request(secret, base_url, method, path, body, auth=None, model="", bert_model=""):
+def secure_request(secret, base_url, method, path, body, auth=None, timeout=600):
+    """Encrypted request to the remote proxy. Returns {status, body}."""
     inner = {"method": method, "path": path, "body": body}
-    envelope = secure.encrypt(secret, json.dumps(inner).encode("utf-8"))
-    if auth:
-        envelope["auth"] = secure.build_auth_envelope(
-            model, bert_model, auth["user"], auth["password"]
-        )
+    if auth and auth.get("user") and auth.get("password"):
+        inner["credentials"] = {"user": auth["user"], "password": auth["password"]}
+
+    secret_bytes = secure.load_secret(secret)
+    envelope = secure.encrypt_request(secret_bytes, json.dumps(inner).encode("utf-8"))
+    req_id = secure.b64d(envelope["req_id"])
     data = json.dumps(envelope).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     req = urllib.request.Request(
@@ -48,9 +50,11 @@ def secure_request(secret, base_url, method, path, body, auth=None, model="", be
         headers=headers,
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=600) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         resp_envelope = json.loads(resp.read().decode("utf-8"))
-    return json.loads(secure.decrypt(secret, resp_envelope).decode("utf-8"))
+    return json.loads(
+        secure.decrypt_response(secret_bytes, resp_envelope, req_id).decode("utf-8")
+    )
 
 
 def main():
@@ -72,7 +76,6 @@ def main():
     user = args.user or _read_env("AUTH_USER")
     password = args.password or _read_env("AUTH_PASSWORD")
     model = _read_env("OLLAMA_MODEL") or args.model
-    bert_model = _read_env("BERT_MODEL")
     auth = None
     if user and password:
         auth = {"user": user, "password": password}
@@ -81,7 +84,7 @@ def main():
     try:
         with urllib.request.urlopen(base + "/health", timeout=30) as resp:
             health = json.loads(resp.read().decode("utf-8"))
-        print("[OK] Proxy alive. Server window: %s" % health.get("window"))
+        print("[OK] Proxy alive: %s" % json.dumps(health))
     except Exception as exc:  # noqa: BLE001
         print("[WARN] /health did not respond: %s" % exc)
 
@@ -91,9 +94,7 @@ def main():
         "messages": [{"role": "user", "content": args.prompt}],
         "stream": False,
     }
-    result = secure_request(
-        secret, base, "POST", "/v1/chat/completions", body, auth, model, bert_model
-    )
+    result = secure_request(secret, base, "POST", "/v1/chat/completions", body, auth)
     if result.get("status") != 200:
         print("[FAIL] Server responded %s: %s" % (result.get("status"), result.get("body")))
         sys.exit(1)

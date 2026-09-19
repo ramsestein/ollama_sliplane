@@ -1,10 +1,11 @@
-"""Encrypted proxy in front of Ollama.
+"""Encrypted proxy in front of Ollama (protocol v2).
 
 Exposes:
-  GET  /health         -> unencrypted status (for health checks)
-  POST /secure/request -> encrypted envelope {window, nonce, ciphertext} containing
-                          an inner request {method, path, body}. It is forwarded to
-                          Ollama and the response is returned encrypted.
+  GET  /health         -> {"ok": true} for health checks
+  POST /secure/request -> encrypted envelope {v, ts, req_id, nonce, ciphertext}
+                          containing an inner request {method, path, body,
+                          credentials}. It is forwarded to Ollama and the
+                          response is returned encrypted and bound to req_id.
 
 Ollama listens only on 127.0.0.1:11434 (never exposed to the outside).
 
@@ -12,8 +13,13 @@ Protections on /secure/request:
   - IP allowlist (ALLOWED_IPS).
   - X-Forwarded-For is only trusted from known proxies (TRUSTED_PROXIES).
   - Per-IP rate limiting (RATE_LIMIT requests/minute).
-  - Anti-replay: an exact ciphertext is accepted only once (nonce uniqueness).
-  - Encrypted credentials (double encryption, see secure.py).
+  - Anti-replay of req_id, checked after tag verification, with a bounded
+    fail-closed cache.
+  - Credentials (user/password) travel inside the encrypted payload and are
+    compared with hmac.compare_digest. Possession of the PSK already
+    authenticates; credentials are for audit/segregation, not a second factor.
+  - Single generic error response for tag/freshness/replay/credential failures;
+    the real cause goes only to the audit log.
   - JSON audit log (AUDIT_LOG), never the request/response body.
 """
 import hmac
@@ -35,11 +41,13 @@ SECRET = os.environ.get("ENCRYPTION_SECRET", "")
 AUTH_USER = os.environ.get("AUTH_USER", "")
 AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
 ALLOWED_IPS = os.environ.get("ALLOWED_IPS", "")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "")
-BERT_MODEL = os.environ.get("BERT_MODEL", "")
 TRUSTED_PROXIES = os.environ.get("TRUSTED_PROXIES", "")
 RATE_LIMIT = int(os.environ.get("RATE_LIMIT", "0") or 0)  # req/min per IP; 0 = off
 AUDIT_LOG = os.environ.get("AUDIT_LOG", "")
+
+# The generic, oracle-free error returned for tag/freshness/replay/credential
+# failures. The real cause is only written to the audit log.
+_GENERIC_DENIAL = {"error": "unauthorized"}
 
 
 def _parse_allowed_ips(raw):
@@ -91,22 +99,19 @@ def _ip_allowed(ip):
     return any(addr in net for net in _ALLOWED_NETS)
 
 
-def _auth_ok(auth_envelope):
-    """Validate the encrypted credentials (auth layer of double encryption).
+def _auth_ok(inner):
+    """Validate plaintext credentials inside the decrypted payload.
 
-    The envelope can only be opened with a key derived from OLLAMA_MODEL +
-    BERT_MODEL + AUTH_PASSWORD, so it fails unless all three match the server.
+    Possession of the PSK already authenticates; these credentials exist for
+    audit and tenant segregation, not as a second factor. Compared in constant
+    time.
     """
     if not AUTH_USER and not AUTH_PASSWORD:
         return True  # no credentials configured => no restriction
-    if not isinstance(auth_envelope, dict):
+    if not isinstance(inner, dict):
         return False
-    try:
-        creds = json.loads(
-            secure.decrypt_auth(OLLAMA_MODEL, BERT_MODEL, AUTH_PASSWORD, auth_envelope)
-            .decode("utf-8")
-        )
-    except Exception:  # noqa: BLE001
+    creds = inner.get("credentials")
+    if not isinstance(creds, dict):
         return False
     return (
         hmac.compare_digest(str(creds.get("user", "")), AUTH_USER)
@@ -134,39 +139,30 @@ def _rate_limited(ip):
         return False
 
 
-_REPLAY_TTL = 3 * secure.WINDOW_SECONDS
-_seen_lock = threading.Lock()
-_seen = {}   # message ciphertext -> expiry timestamp
-
-
-def _is_replay(ciphertext):
-    """True if this exact ciphertext was already processed (same nonce => replay)."""
-    now = time.time()
-    with _seen_lock:
-        for key in list(_seen):
-            if _seen[key] <= now:
-                del _seen[key]
-        if ciphertext in _seen:
-            return True
-        _seen[ciphertext] = now + _REPLAY_TTL
-        return False
-
+_replay = secure.ReplayCache()
 
 _audit_lock = threading.Lock()
 
 
-def _audit(client_ip, method, path, status):
+def _audit(client_ip, method, path, status, req_id=None, reason=None, size=None):
     """Append one JSON line per request to AUDIT_LOG (never the body)."""
     if not AUDIT_LOG:
         return
+    entry = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "ip": client_ip,
+        "method": method,
+        "path": path,
+        "status": status,
+    }
+    if req_id is not None:
+        entry["req_id"] = req_id
+    if reason is not None:
+        entry["reason"] = reason
+    if size is not None:
+        entry["size"] = size
     try:
-        line = json.dumps({
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "ip": client_ip,
-            "method": method,
-            "path": path,
-            "status": status,
-        })
+        line = json.dumps(entry)
         with _audit_lock:
             with open(AUDIT_LOG, "a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
@@ -188,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.rstrip("/") == "/health":
-            self._json(200, {"ok": True, "window": secure.current_window()})
+            self._json(200, {"ok": True})
         else:
             self._json(404, {"error": "not found"})
 
@@ -201,42 +197,65 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if not _ip_allowed(client_ip):
-            _audit(client_ip, "POST", req_path, 403)
+            _audit(client_ip, "POST", req_path, 403, reason="ip_not_allowed")
             self._json(403, {"error": "ip not allowed"})
             return
 
         if _rate_limited(client_ip):
-            _audit(client_ip, "POST", req_path, 429)
+            _audit(client_ip, "POST", req_path, 429, reason="rate_limited")
             self._json(429, {"error": "rate limit exceeded"})
             return
 
+        length = 0
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            envelope = json.loads(self.rfile.read(length))
+            raw_body = self.rfile.read(length)
+            envelope = json.loads(raw_body)
         except Exception:  # noqa: BLE001
-            _audit(client_ip, "POST", req_path, 400)
+            _audit(client_ip, "POST", req_path, 400, reason="bad_request", size=length)
             self._json(400, {"error": "bad request"})
-            return
-
-        auth_envelope = envelope.get("auth") if isinstance(envelope, dict) else None
-        if not _auth_ok(auth_envelope):
-            _audit(client_ip, "POST", req_path, 401)
-            self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Basic realm="ollama"')
-            self.end_headers()
             return
 
         try:
-            inner = json.loads(secure.decrypt(SECRET, envelope).decode("utf-8"))
+            secret = secure.load_secret(SECRET)
+        except secure.InvalidSecretError:
+            _audit(client_ip, "POST", req_path, 401, reason="invalid_secret")
+            self._json(401, _GENERIC_DENIAL)
+            return
+
+        # Tag + freshness verification (authenticated headers only).
+        try:
+            plaintext, req_id = secure.decrypt_request(secret, envelope)
+        except secure.SecureError:
+            _audit(client_ip, "POST", req_path, 401, reason="decrypt_failure")
+            self._json(401, _GENERIC_DENIAL)
+            return
+
+        # Anti-replay, checked after the tag has been verified.
+        if _replay.check_and_store(req_id):
+            _audit(client_ip, "POST", req_path, 401, reason="replay",
+                   req_id=secure.b64e(req_id))
+            self._json(401, _GENERIC_DENIAL)
+            return
+
+        try:
+            inner = json.loads(plaintext.decode("utf-8"))
         except Exception:  # noqa: BLE001
-            _audit(client_ip, "POST", req_path, 400)
+            _audit(client_ip, "POST", req_path, 400, reason="bad_inner_json",
+                   req_id=secure.b64e(req_id))
             self._json(400, {"error": "bad request"})
             return
 
-        ciphertext = envelope.get("ciphertext") if isinstance(envelope, dict) else None
-        if isinstance(ciphertext, str) and _is_replay(ciphertext):
-            _audit(client_ip, "POST", req_path, 409)
-            self._json(409, {"error": "replayed request"})
+        if not isinstance(inner, dict):
+            _audit(client_ip, "POST", req_path, 400, reason="bad_inner_json",
+                   req_id=secure.b64e(req_id))
+            self._json(400, {"error": "bad request"})
+            return
+
+        if not _auth_ok(inner):
+            _audit(client_ip, "POST", req_path, 401, reason="bad_credentials",
+                   req_id=secure.b64e(req_id))
+            self._json(401, _GENERIC_DENIAL)
             return
 
         method = str(inner.get("method", "GET")).upper()
@@ -269,13 +288,19 @@ class Handler(BaseHTTPRequestHandler):
             parsed = raw
 
         response_inner = {"status": status, "body": parsed}
-        _audit(client_ip, method, path, status)
-        self._json(200, secure.encrypt(SECRET, json.dumps(response_inner).encode("utf-8")))
+        _audit(client_ip, method, path, status, req_id=secure.b64e(req_id),
+               size=length)
+        response_envelope = secure.encrypt_response(
+            secret, json.dumps(response_inner).encode("utf-8"), req_id
+        )
+        self._json(200, response_envelope)
 
 
 def main():
-    if not SECRET:
-        sys.stderr.write("ERROR: ENCRYPTION_SECRET no está definida\n")
+    try:
+        secure.load_secret(SECRET)
+    except secure.InvalidSecretError as exc:
+        sys.stderr.write("ERROR: ENCRYPTION_SECRET inválida: %s\n" % exc)
         sys.exit(1)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     sys.stderr.write("Proxy seguro escuchando en 0.0.0.0:%d\n" % PORT)

@@ -1,8 +1,11 @@
 """Tests de los helpers de anonimización de local_ollama.py."""
+import base64
 import os
 
 # Prevent local_ollama.py from exiting due to missing ENCRYPTION_SECRET on import.
-os.environ.setdefault("ENCRYPTION_SECRET", "test-secret")
+os.environ.setdefault(
+    "ENCRYPTION_SECRET", base64.b64encode(b"t" * 32).decode("ascii")
+)
 
 from src import local_ollama as lo  # noqa: E402
 

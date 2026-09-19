@@ -1,4 +1,4 @@
-"""Tests de proxy.py (autenticación cifrada y lista blanca de IPs)."""
+"""Tests de proxy.py (protocolo v2)."""
 import ipaddress
 
 from src import proxy, secure
@@ -16,30 +16,22 @@ def test_parse_allowed_ips_empty():
 def test_auth_ok(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "admin")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
-    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
-    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
-    env = secure.build_auth_envelope("m1", "bert1", "admin", "secret")
-    assert proxy._auth_ok(env) is True
-    assert proxy._auth_ok({}) is False
-    assert proxy._auth_ok(None) is False
+    inner = {"credentials": {"user": "admin", "password": "secret"}}
+    assert proxy._auth_ok(inner) is True
 
 
 def test_auth_ok_wrong_password(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "admin")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
-    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
-    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
-    env = secure.build_auth_envelope("m1", "bert1", "admin", "wrong")
-    assert proxy._auth_ok(env) is False
+    inner = {"credentials": {"user": "admin", "password": "wrong"}}
+    assert proxy._auth_ok(inner) is False
 
 
-def test_auth_ok_wrong_model(monkeypatch):
+def test_auth_ok_missing_credentials(monkeypatch):
     monkeypatch.setattr(proxy, "AUTH_USER", "admin")
     monkeypatch.setattr(proxy, "AUTH_PASSWORD", "secret")
-    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m1")
-    monkeypatch.setattr(proxy, "BERT_MODEL", "bert1")
-    env = secure.build_auth_envelope("m2", "bert1", "admin", "secret")
-    assert proxy._auth_ok(env) is False
+    assert proxy._auth_ok({}) is False
+    assert proxy._auth_ok(None) is False
 
 
 def test_auth_disabled_without_credentials(monkeypatch):
@@ -75,8 +67,9 @@ def test_rate_limited(monkeypatch):
     assert proxy._rate_limited("1.1.1.1") is True
 
 
-def test_is_replay():
-    proxy._seen.clear()
-    assert proxy._is_replay("ct-1") is False
-    assert proxy._is_replay("ct-1") is True
-    assert proxy._is_replay("ct-2") is False
+def test_replay_cache_used():
+    assert isinstance(proxy._replay, secure.ReplayCache)
+
+
+def test_generic_denial_is_stable():
+    assert proxy._GENERIC_DENIAL == {"error": "unauthorized"}

@@ -5,8 +5,9 @@ Detects entities with:
   - Regex rules (dates, times, phones, names, addresses, etc.).
 
 and replaces them with reversible placeholders `[TAG_n]`. The
-`placeholder -> real text` map lives only on the client: the server
-never sees the real data.
+`placeholder -> real text` map lives only on the client; the server receives
+only placeholders, subject to the detector's recall (missed entities are
+transmitted in the clear — see docs/threat-model.md).
 
 No dependencies on `carmina_3_suite/`: all the relevant code lives here.
 The only external resource is the BERT model, stored under `models/`.
@@ -19,7 +20,7 @@ from pathlib import Path
 from . import PROJECT_ROOT
 
 ROOT = PROJECT_ROOT
-DEFAULT_MODEL_REPO = "PlanTL-GOB-ES/bsc-bio-ehr-es-carmen-anon"
+DEFAULT_MODEL_REPO = "BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon"
 DEFAULT_MODEL_DIR = Path(os.environ.get("CARMINA_MODEL_DIR", ROOT / "models"))
 
 
