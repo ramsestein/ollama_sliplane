@@ -8,18 +8,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Instalar dependencias de test
-        run: pip install cryptography pytest
-      - name: Ejecutar tests
-        run: python -m pytest -q
+        run: pip install cryptography pytest pytest-cov ruff
+      - name: Lint (ruff)
+        run: ruff check src tests eval
+      - name: Tests con cobertura (secure.py y proxy.py)
+        run: |
+          python -m pytest -q \
+            --cov=src.secure --cov=src.proxy \
+            --cov-fail-under=85 --cov-report=term-missing
       - name: Auditoría de dependencias (pip-audit)
-        continue-on-error: true
         run: |
           pip install pip-audit
           pip-audit -r requirements.txt
@@ -30,4 +37,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Construir imagen Docker
-        run: docker build -t ollama-privado:ci .
+        run: docker build -t pukara:ci .

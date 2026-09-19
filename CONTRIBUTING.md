@@ -33,10 +33,10 @@ python -m pytest -q
 
 Tests cover:
 
-- `secure.py` — encryption/decryption, key rotation and window tolerance.
+- `secure.py` — protocol v2 encryption/decryption, freshness, anti-replay and key derivation.
 - `anonymizer.py` — label mapping, regex detection and reversible placeholders.
-- `proxy.py` — encrypted credentials (double encryption) and IP allowlist.
-- `local_ollama.py` — request/response anonymization.
+- `proxy.py` — config matching, route allowlist and IP allowlist.
+- `local_ollama.py` — request/response pseudonymisation.
 
 ## Running the server locally
 

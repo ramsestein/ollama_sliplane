@@ -7,12 +7,13 @@
 [![CI](https://github.com/ramsestein/pukara/actions/workflows/ci.yml/badge.svg)](https://github.com/ramsestein/pukara/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)]()
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.1.0-orange)]()
+[![Version](https://img.shields.io/badge/Version-0.2.0-orange)]()
 
 A privacy-first, self-hosted gateway for local large language models
 ([Ollama](https://ollama.com)). Pukara runs a Dockerized Ollama server behind an
-application-layer encryption proxy, and ships a desktop client that **anonymizes
-sensitive entities on-device** (BERT + regex) before anything leaves the machine.
+application-layer encrypted proxy, and ships a desktop client that
+**pseudonymises sensitive entities on-device** (BERT + regex) before anything
+leaves the machine.
 
 The name *Pukara* (Quechua for "fortress") plays on Ollama's alpaca: a small,
 resilient stronghold around your model.
@@ -22,28 +23,33 @@ resilient stronghold around your model.
 | Field | Value |
 |---|---|
 | Name | Pukara |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | License | [MIT](LICENSE) |
 | Language | Python 3.9+ |
-| Dependencies | `cryptography`, `torch`, `transformers`, `numpy`, `huggingface_hub` |
+| Dependencies | `cryptography`, `numpy` (core); `torch`, `transformers`, `huggingface_hub` (client) |
 | Repository | https://github.com/ramsestein/pukara |
 | CI | [GitHub Actions](.github/workflows/ci.yml) |
+| DOI | Pending (Zenodo release `v0.2.0`) |
 
 ## Abstract
 
-Pukara addresses the gap between self-hosted LLMs and privacy: it encrypts the
-whole client–server channel with **AES-256-GCM** (rotating key) and
-**anonymizes personal data on the client** before transmission, so the server
-only ever sees reversible placeholders it cannot undo. It is designed for
-**Spanish** text, where privacy tooling is scarce, and is model-agnostic (swap
-`BERT_MODEL` for another language).
+Pukara addresses the gap between self-hosted LLMs and privacy. It encrypts the
+whole client–server channel with protocol v2 (pre-shared key, AES-256-GCM with
+HKDF-SHA256, direction-separated keys, server-clock freshness and anti-replay),
+and **pseudonymises personal data on the client** before transmission:
+detected entities are replaced by reversible placeholders and the
+placeholder→text map never leaves the client. The sender's data remain personal
+to the client; whether the transmitted text is anonymous for the recipient
+depends on residual re-identification risk (see the threat model and
+`docs/metrics.md`). It is designed for **Spanish** clinical text and is
+model-agnostic (swap `BERT_MODEL` for another language).
 
 ## Motivation and significance
 
 - Local models are increasingly self-hosted, but the transport and the payload
   are rarely protected end-to-end.
-- Clinical and personal Spanish text has few ready-to-use anonymization tools.
-- Pukara packages encryption + on-device NER anonymization + a turnkey
+- Clinical and personal Spanish text has few ready-to-use pseudonymisation tools.
+- Pukara packages encryption + on-device NER pseudonymisation + a turnkey
   Ollama-compatible endpoint, so existing tools (VS Code, Codex, Claude Code)
   work without changes.
 
@@ -52,34 +58,35 @@ only ever sees reversible placeholders it cannot undo. It is designed for
 ```mermaid
 flowchart LR
     subgraph Client
-      GUI[Desktop GUI] --> AN[Anonymizer BERT + regex]
+      GUI[Desktop GUI] --> AN[Pseudonymiser BERT + regex]
       LO[Virtual Ollama :11434] --> AN
     end
-    AN -- "double AES-GCM over HTTPS" --> PX[Proxy :8000]
+    AN -- "protocol v2 encrypted envelope over HTTPS" --> PX[Proxy :8000]
     PX -- "local HTTP" --> OL[Ollama :11434]
 ```
 
-Encryption is **double-layered** (two independent AES-256-GCM layers):
+Protocol v2 (`src/secure.py`, see `docs/dev/adr-001-protocol.md`):
 
-1. **Message**: the request/response body is encrypted with a key derived from
-   the shared secret plus a 5-minute time window:
-   `key = HMAC-SHA256(secret, "ollama-secure:{window}")`.
-2. **Credentials**: the Basic Auth credentials are encrypted separately with a
-   second key derived from the sum of the model name, the BERT model name and
-   the auth password, so they never travel in the clear:
-   `key = HMAC-SHA256(SHA-256(model | bert_model | auth_password), "pukara-auth:{window}")`.
-
-```
-window = unix_timestamp // 300
-```
+- `ENCRYPTION_SECRET` is a 32-byte pre-shared key (generate with
+  `python -m src.keygen`).
+- Direction-separated keys: `HKDF-SHA256(secret, "pukara/v2/c2s")` and
+  `HKDF-SHA256(secret, "pukara/v2/s2c")`.
+- Every envelope carries `{v, ts, req_id, nonce, ciphertext}`; the AAD binds
+  version, direction, timestamp and request id.
+- The server rejects timestamps outside `MAX_SKEW`, replays via a bounded
+  fail-closed `req_id` cache, and responses are bound to the request id.
+- Credentials and the deployment configuration (`user`, `password`, `model`,
+  `bert_model`) travel inside the encrypted payload and must all match the
+  server, or the request is rejected.
 
 See [`docs/installation.md`](docs/installation.md) and
 [`docs/client.md`](docs/client.md) for the full details.
 
 ## Functionality
 
-- Dockerized Ollama server behind an encrypted proxy (double encryption, IP allowlist, rate limiting, anti-replay).
-- On-device anonymization (BERT `bsc-bio-ehr-es-carmen-anon` + regex).
+- Dockerized Ollama server behind an encrypted proxy (protocol v2, IP allowlist,
+  route allowlist, rate limiting, anti-replay, body limit).
+- On-device pseudonymisation (BERT `bsc-bio-ehr-es-carmen-anon` + regex).
 - Desktop GUI with auto-detected IP and start/stop of the local endpoint.
 - Ollama/OpenAI-compatible local endpoint for external tools.
 
@@ -101,9 +108,25 @@ report vulnerabilities.
 
 ## Evaluation
 
-Anonymization metrics (CARMEN, MedDocAn) are reported in
-[`docs/metrics.md`](docs/metrics.md). Highlights: word-level F1 **0.924** on
-CARMEN, document-level leakage **2.5%**.
+Pseudonymisation metrics are regenerated from versioned JSON files with
+`make eval` and reported in [`docs/metrics.md`](docs/metrics.md). CARMEN-I is
+retired as a headline metric (the model was fine-tuned on it and no public
+train/test split could be determined); MEDDOCAN `dev`+`test` is the clean
+out-of-distribution set.
+
+## Limitations
+
+- **No forward secrecy.** The protocol uses a pre-shared key: whoever obtains
+  `ENCRYPTION_SECRET` can decrypt recorded traffic.
+- **Detector recall is < 1.** Missed direct identifiers are transmitted in the
+  clear; see the measured leakage in `docs/metrics.md`.
+- **Traffic analysis is not mitigated** (sizes and timings are visible).
+- **Re-identification via quasi-identifiers** is possible even when every direct
+  identifier is replaced.
+- **Streaming is not implemented** (see `docs/client.md`): the local endpoint
+  forces `stream=false`.
+- **A compromised client is out of scope** (it holds the original text, the map
+  and the key).
 
 ## Tests
 
@@ -112,8 +135,10 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Tests cover `secure.py`, `anonymizer.py`, `proxy.py` and `local_ollama.py`
-without downloading the BERT model.
+Tests cover `secure.py`, `proxy.py`, `anonymizer.py` and `local_ollama.py`
+without downloading the BERT model, plus proxy↔client integration against a
+fake Ollama. CI enforces ≥85% coverage on `secure.py` and `proxy.py`, `ruff`,
+and `pip-audit`.
 
 ## Citation
 
@@ -122,3 +147,4 @@ If you use Pukara, please cite it using [`CITATION.cff`](CITATION.cff).
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
+

@@ -8,6 +8,8 @@ __pycache__/
 *.pyc
 .venv/
 carmina_3_suite/
+.coverage
+htmlcov/
 
 # Modelo BERT de anonimización (pesado, se descarga/copia aparte)
 models/

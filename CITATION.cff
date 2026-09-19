@@ -3,17 +3,27 @@ message: "If you use this software, please cite it as described here."
 title: "Pukara"
 abstract: >-
   A privacy-first, self-hosted gateway for local large language models: a
-  Dockerized Ollama server behind an AES-256-GCM encryption proxy and a desktop
-  client that anonymizes sensitive entities on-device (BERT + regex) before
-  sending data to the server.
-authors: ["Marrero Garcia, Ramsés", "Peñafiel, Petter Axel"]
+  Dockerized Ollama server behind a pre-shared-key encrypted proxy (protocol
+  v2: AES-256-GCM + HKDF-SHA256) and a desktop client that pseudonymises
+  sensitive entities on-device (BERT + regex) before sending data to the
+  server.
+authors:
+  # ORCID markers pending author confirmation.
+  - family-names: Marrero Garcia
+    given-names: Ramses
+    # orcid: TODO
+  - family-names: Penafiel
+    given-names: Petter Axel
+    # orcid: TODO
 keywords:
   - ollama
   - encryption
   - anonymization
+  - pseudonymisation
   - privacy
   - llm
   - spanish
+  - clinical-nlp
 license: MIT
-version: 0.1.0
-date-released: 2026-09-18
+version: 0.2.0
+date-released: 2026-09-19

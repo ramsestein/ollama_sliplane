@@ -1,7 +1,12 @@
 """Tests de proxy.py (protocolo v2)."""
+import base64
 import ipaddress
 
+import pytest
+
 from src import proxy, secure
+
+SECRET_B64 = base64.b64encode(b"0" * 32).decode("ascii")
 
 
 def test_parse_allowed_ips():
@@ -96,6 +101,61 @@ def test_rate_limited(monkeypatch):
     assert proxy._rate_limited("1.1.1.1") is False
     assert proxy._rate_limited("1.1.1.1") is False
     assert proxy._rate_limited("1.1.1.1") is True
+
+
+def test_rate_limited_disabled(monkeypatch):
+    monkeypatch.setattr(proxy, "RATE_LIMIT", 0)
+    assert proxy._rate_limited("1.1.1.1") is False
+
+
+def test_parse_allowed_ips_ignores_invalid():
+    nets = proxy._parse_allowed_ips("no-es-cidr, 1.2.3.4")
+    assert nets == [ipaddress.ip_network("1.2.3.4")]
+
+
+def test_resolve_client_ip_invalid_peer(monkeypatch):
+    monkeypatch.setattr(proxy, "_TRUSTED_NETS", [ipaddress.ip_network("10.0.0.0/8")])
+    assert proxy._resolve_client_ip("not-an-ip", "9.9.9.9", None) == "not-an-ip"
+
+
+# ── main(): fail-closed startup ───────────────────────────────────────────
+def test_main_invalid_secret_exits(monkeypatch):
+    monkeypatch.setattr(proxy, "SECRET", "corto")
+    with pytest.raises(SystemExit):
+        proxy.main()
+
+
+def test_main_strict_blocks_insecure(monkeypatch):
+    monkeypatch.setattr(proxy, "SECRET", SECRET_B64)
+    monkeypatch.setattr(proxy, "ALLOWED_IPS", "")
+    monkeypatch.setattr(proxy, "AUTH_USER", "")
+    monkeypatch.setattr(proxy, "AUTH_PASSWORD", "")
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "")
+    monkeypatch.setattr(proxy, "STRICT", True)
+    with pytest.raises(SystemExit):
+        proxy.main()
+
+
+def test_main_starts_server(monkeypatch):
+    monkeypatch.setattr(proxy, "SECRET", SECRET_B64)
+    monkeypatch.setattr(proxy, "ALLOWED_IPS", "1.2.3.4")
+    monkeypatch.setattr(proxy, "AUTH_USER", "u")
+    monkeypatch.setattr(proxy, "AUTH_PASSWORD", "p")
+    monkeypatch.setattr(proxy, "OLLAMA_MODEL", "m")
+    monkeypatch.setattr(proxy, "BERT_MODEL", "b")
+    monkeypatch.setattr(proxy, "STRICT", False)
+
+    class FakeServer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def serve_forever(self):
+            raise SystemExit(0)
+
+    monkeypatch.setattr(proxy, "ThreadingHTTPServer", FakeServer)
+    with pytest.raises(SystemExit):
+        proxy.main()
 
 
 def test_replay_cache_used():
