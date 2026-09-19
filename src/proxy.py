@@ -279,6 +279,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if not _ip_allowed(client_ip):
             _audit(client_ip, "POST", req_path, 403, reason="ip_not_allowed")
+            # Log the IP the server actually resolved (visible in Sliplane
+            # logs). Behind a reverse proxy this is usually the proxy's IP
+            # unless TRUSTED_PROXIES is configured.
+            sys.stderr.write(f"[proxy] ip not allowed: {client_ip}\n")
             self._json(403, {"error": "ip not allowed"})
             return
 
