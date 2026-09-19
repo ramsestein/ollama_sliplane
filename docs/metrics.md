@@ -21,7 +21,7 @@ below are produced by scripts in `eval/` and versioned under
 ## MEDDOCAN (dev + test, out-of-distribution)
 
 - Mode: `combined`; documents: 500;
-  revision `30fb7e2cf5eb`.
+  revision `8754c1b9c40e`.
 
 | Level | Precision | Recall | F1 | F1 CI95 |
 |---|---|---|---|---|
@@ -32,7 +32,7 @@ below are produced by scripts in `eval/` and versioned under
 **PHI neutralization** (label-agnostic): 10362 / 11462 gold PHI spans are covered by at least one prediction (90.4%). A wrong label does not leak data; an uncovered span does.
 
 **Document-level leakage** (docs with ≥1 missed PHI span):
-- direct identifiers only (EMAIL, NAME, PHONE, ID): 91 / 500 (18.2%)
+- direct identifiers only (EMAIL, NAME, PHONE, ID): 142 / 500 (28.4%)
 - any PHI label: 353 / 500 (70.6%)
 
 ### Per-class (span strict)
@@ -46,15 +46,16 @@ below are produced by scripts in `eval/` and versioned under
 | HOSPITAL | 20.3% | 53.6% | 29.4% | 278 |
 | ID | 0.3% | 0.5% | 0.4% | 1499 |
 | LOCATION | 54.4% | 43.2% | 48.2% | 3500 |
-| NAME | 0.0% | 0.0% | 0.0% | 1005 |
+| NAME | 41.8% | 47.7% | 44.6% | 2003 |
 | ORGANIZATION | 1.7% | 1.4% | 1.5% | 139 |
 | OTHER | 0.0% | 0.0% | 0.0% | 13 |
 | PHONE | 2.2% | 82.8% | 4.2% | 64 |
 | PROFESSION | 39.1% | 69.2% | 50.0% | 13 |
-| PROFESSIONAL | 27.7% | 48.2% | 35.2% | 998 |
 | SEX | 90.3% | 41.8% | 57.2% | 916 |
 | TIME | 0.0% | 0.0% | 0.0% | 0 |
 | URL | 0.0% | 0.0% | 0.0% | 0 |
+
+_Person names (`NOMBRE_PERSONAL_SANITARIO` and `NOMBRE_SUJETO_ASISTENCIA`) are merged into `NAME`: the CARMEN model has no patient-name class and emits both as `NOMBRE_PERSONAL_SANITARIO`. For anonymization they are identical._
 
 ## Synthetic prompt benchmark
 

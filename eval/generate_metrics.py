@@ -96,6 +96,12 @@ def main() -> int:
             lines.append(f"| {lab} | {_pct(c['precision'])} | {_pct(c['recall'])} | "
                          f"{_pct(c['f1'])} | {c['support']} |")
         lines.append("")
+        lines.append("_Person names (`NOMBRE_PERSONAL_SANITARIO` and "
+                     "`NOMBRE_SUJETO_ASISTENCIA`) are merged into `NAME`: the "
+                     "CARMEN model has no patient-name class and emits both as "
+                     "`NOMBRE_PERSONAL_SANITARIO`. For anonymization they are "
+                     "identical._")
+        lines.append("")
     else:
         lines += [
             "No MEDDOCAN results yet. Run `python -m eval.meddocan` (TODO: the",

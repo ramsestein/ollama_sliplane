@@ -70,8 +70,11 @@ def verify_model_hash(model_path):
 BRAT_TO_UNIFIED = {
     "FECHAS": "DATE",
     "HORAS": "TIME",
+    # The CARMEN model has no NOMBRE_SUJETO_ASISTENCIA class: it emits patient
+    # names as NOMBRE_PERSONAL_SANITARIO. Both person-name classes are merged
+    # into NAME because anonymization treats any person name identically.
     "NOMBRE_SUJETO_ASISTENCIA": "NAME",
-    "NOMBRE_PERSONAL_SANITARIO": "PROFESSIONAL",
+    "NOMBRE_PERSONAL_SANITARIO": "NAME",
     "FAMILIARES_SUJETO_ASISTENCIA": "FAMILY",
     "PROFESION": "PROFESSION",
     "EDAD_SUJETO_ASISTENCIA": "AGE",
@@ -100,7 +103,8 @@ STEP2_TO_UNIFIED = {
     "DATE": "DATE",
     "TIME": "TIME",
     "PHONE": "PHONE",
-    "DOCTOR": "PROFESSIONAL",
+    # "Dr./Dra. X" is a person name for anonymization purposes.
+    "DOCTOR": "NAME",
     "AGE": "AGE",
     "LOCATION": "LOCATION",
     "RELATION": "FAMILY",

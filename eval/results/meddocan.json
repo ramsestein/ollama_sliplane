@@ -1,7 +1,7 @@
 {
   "script": "eval/meddocan.py",
-  "generated": "2026-09-19T08:41:07.226746Z",
-  "code_revision": "30fb7e2cf5eb71d6b44eb659fd807e30adf0dc4e",
+  "generated": "2026-09-19T09:12:04.164832Z",
+  "code_revision": "8754c1b9c40e3985bcada9492681b637927b4df2",
   "mode": "combined",
   "model": {
     "repo": "BSC-NLP4BIA/bsc-bio-ehr-es-carmen-anon",
@@ -81,10 +81,10 @@
       "support": 3500
     },
     "NAME": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
-      "support": 1005
+      "precision": 0.4183092422251424,
+      "recall": 0.4767848227658512,
+      "f1": 0.4456369575361643,
+      "support": 2003
     },
     "ORGANIZATION": {
       "precision": 0.01652892561983471,
@@ -109,12 +109,6 @@
       "recall": 0.6923076923076923,
       "f1": 0.5,
       "support": 13
-    },
-    "PROFESSIONAL": {
-      "precision": 0.277073732718894,
-      "recall": 0.4819639278557114,
-      "f1": 0.351865398683248,
-      "support": 998
     },
     "SEX": {
       "precision": 0.9033018867924528,
@@ -142,9 +136,9 @@
   },
   "leakage": {
     "direct_identifiers": {
-      "leaked_docs": 91,
+      "leaked_docs": 142,
       "total_docs": 500,
-      "rate": 0.182
+      "rate": 0.284
     },
     "any_phi": {
       "leaked_docs": 353,

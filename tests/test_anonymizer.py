@@ -14,7 +14,7 @@ def test_map_bert_label():
 def test_map_step2_label():
     assert anonymizer._map_step2_label("DATE") == "DATE"
     assert anonymizer._map_step2_label("PERSON") == "NAME"
-    assert anonymizer._map_step2_label("DOCTOR") == "PROFESSIONAL"
+    assert anonymizer._map_step2_label("DOCTOR") == "NAME"
     assert anonymizer._map_step2_label("RELATION") == "FAMILY"
 
 
@@ -30,7 +30,7 @@ def test_regex_detects_entities():
     assert "LOCATION" in labels
     assert "PHONE" in labels
     assert "AGE" in labels
-    assert "PROFESSIONAL" in labels
+    assert "NAME" in labels
 
 
 def test_regex_detects_email_and_url_without_dup_phone():
